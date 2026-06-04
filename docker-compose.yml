@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      # Use a dedicated data subfolder to persist the SQLite file properly
+      - DATABASE_URL=sqlite:////app/data/nss_fueltrack.db
+      # Update CORS_ORIGINS with the domain name when deploying to production
+      - CORS_ORIGINS=http://localhost,http://localhost:80,http://localhost:5173
+    volumes:
+      - backend_data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./nss-fueltrack
+      dockerfile: Dockerfile
+      args:
+        # Note: Set this to the backend's PUBLIC endpoint when deploying.
+        # e.g., https://api.yourdomain.com or http://YOUR_VPS_IP:8000
+        - VITE_API_URL=http://localhost:8000
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend_data:

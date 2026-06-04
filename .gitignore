@@ -1,0 +1,32 @@
+# Environment variables (contains passwords and API keys)
+.env
+*.env
+backend/.env
+nss-fueltrack/.env
+
+# Node.js
+node_modules/
+nss-fueltrack/node_modules/
+nss-fueltrack/dist/
+
+# Python caching & environment files
+__pycache__/
+backend/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+ENV/
+env/
+
+# Databases
+backend/*.db
+*.db
+*.sqlite
+
+# IDEs & System files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
