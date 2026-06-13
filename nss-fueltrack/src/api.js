@@ -3,13 +3,21 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-// Fallback to local storage mock if Supabase environment variables are missing
-const hasSupabase = !!(supabaseUrl && supabaseAnonKey);
+// Fallback to local storage mock if Supabase environment variables are missing or invalid
+const hasSupabase = !!(supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('http'));
 if (!hasSupabase) {
-  console.warn("⚠️ Supabase VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY not configured. Falling back to local storage mock mode.");
+  console.warn("⚠️ Supabase VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY not configured or invalid. Falling back to local storage mock mode.");
 }
 
-const supabase = hasSupabase ? createClient(supabaseUrl, supabaseAnonKey) : null;
+let supabase = null;
+if (hasSupabase) {
+  try {
+    supabase = createClient(supabaseUrl, supabaseAnonKey);
+  } catch (err) {
+    console.error("⚠️ Failed to initialize Supabase client. Falling back to mock mode:", err);
+    console.warn("Please check that VITE_SUPABASE_URL is a valid URL starting with http/https.");
+  }
+}
 
 export const api = {
   // --- Security / PIN Config ---
