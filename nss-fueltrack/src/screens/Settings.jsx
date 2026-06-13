@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { fmtTime } from '../hooks/useClock';
+import React, { useState, useEffect } from 'react';
+import { fmtTime } from '../constants';
 
 export default function Settings({
   prices,
@@ -8,22 +8,40 @@ export default function Settings({
   shiftType,
   startTime,
   onEndShiftInitiate,
-  onSavePin
+  onSavePin,
+  ownerEmail,
+  onSaveEmail
 }) {
-  // Local input state for prices
   const [msPriceInput, setMsPriceInput] = useState(prices.ms.toString());
   const [hsdPriceInput, setHsdPriceInput] = useState(prices.hsd.toString());
   const [isPricesSavedFlash, setIsPricesSavedFlash] = useState(false);
 
-  // Local input state for PIN
   const [newPin, setNewPin] = useState('');
   const [pinMessage, setPinMessage] = useState('');
   const [isPinFlash, setIsPinFlash] = useState(false);
 
-  // Shift state check
+  const [emailInput, setEmailInput] = useState(ownerEmail || '');
+  const [isEmailSavedFlash, setIsEmailSavedFlash] = useState(false);
+
+  useEffect(() => {
+    setEmailInput(ownerEmail || '');
+  }, [ownerEmail]);
+
+  const handleSaveEmail = (e) => {
+    e.preventDefault();
+    if (!emailInput.trim() || !emailInput.includes('@')) {
+      alert('Please enter a valid email address.');
+      return;
+    }
+    onSaveEmail(emailInput.trim());
+    setIsEmailSavedFlash(true);
+    setTimeout(() => {
+      setIsEmailSavedFlash(false);
+    }, 2000);
+  };
+
   const isShiftActive = !!startTime;
 
-  // Handle Save Prices
   const handleSavePrices = () => {
     const ms = parseFloat(msPriceInput);
     const hsd = parseFloat(hsdPriceInput);
@@ -35,14 +53,12 @@ export default function Settings({
 
     onSavePrices({ ms, hsd });
     
-    // Success flash
     setIsPricesSavedFlash(true);
     setTimeout(() => {
       setIsPricesSavedFlash(false);
     }, 1800);
   };
 
-  // Handle Save PIN
   const handleSavePin = (e) => {
     e.preventDefault();
     if (!/^\d{4}$/.test(newPin)) {
@@ -62,185 +78,289 @@ export default function Settings({
   };
 
   return (
-    <div className="flex flex-col gap-4 select-none pb-12">
-      {/* Fuel Prices Section */}
-      <div className="bg-card rounded-2xl border border-border p-5">
-        <div className="text-slate-200 font-bold text-[16px] mb-1">
-          ⛽ Fuel Prices
-        </div>
-        <div className="text-muted text-xs mb-4">
-          Set today's rate per litre. Amount auto-fills when DSM enters litres.
-        </div>
-
-        {/* Inputs Display */}
-        <div className="bg-bg rounded-xl border border-border p-4 flex flex-col gap-3">
-          {/* MS Input */}
-          <div className="flex items-center gap-3">
-            <div className="text-xs font-black px-3 py-1.5 rounded-lg border border-gold bg-gold/13 text-gold min-w-[60px] text-center uppercase">
-              MS
-            </div>
-            <div className="flex-1 relative">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sub font-bold text-[15px]">
-                ₹
-              </span>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="e.g. 102.50"
-                value={msPriceInput}
-                onChange={(e) => setMsPriceInput(e.target.value)}
-                readOnly={isShiftActive}
-                className={`w-full bg-[#1e293b] border rounded-lg py-2.5 pl-8 pr-3 text-slate-200 text-sm font-bold outline-none focus:border-gold transition-colors ${
-                  isShiftActive ? 'opacity-50 cursor-not-allowed bg-slate-800' : 'border-border'
-                }`}
-              />
-            </div>
-          </div>
-
-          {/* HSD Input */}
-          <div className="flex items-center gap-3">
-            <div className="text-xs font-black px-3 py-1.5 rounded-lg border border-blue bg-blue-500/13 text-blue min-w-[60px] text-center uppercase">
-              HSD
-            </div>
-            <div className="flex-1 relative">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sub font-bold text-[15px]">
-                ₹
-              </span>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="e.g. 89.00"
-                value={hsdPriceInput}
+    <div id="s-settings" className="screen active" style={{padding: '0 14px 80px'}}>
+      
+      <div className="s-section" style={{
+        background: 'linear-gradient(135deg, #0c1224 0%, #080b18 100%)',
+        borderRadius: '20px',
+        padding: '20px',
+        border: '1px solid rgba(255, 255, 255, 0.06)',
+        marginBottom: '16px',
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)'
+      }}>
+        <div style={{fontSize: '16px', fontWeight: 900, color: '#f8fafc', marginBottom: '4px'}}>⛽ Fuel Prices</div>
+        <div style={{fontSize: '12px', color: '#94a3b8', marginBottom: '16px'}}>Set today's rate per litre</div>
+        
+        <div style={{
+          background: '#040814',
+          borderRadius: '16px',
+          padding: '16px',
+          border: '1px solid rgba(255,255,255,0.03)',
+          marginBottom: '16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px'
+        }}>
+          {/* HSD Price Input */}
+          <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+            <div style={{
+              fontSize: '12px',
+              fontWeight: 900,
+              padding: '10px 14px',
+              borderRadius: '10px',
+              minWidth: '70px',
+              textAlign: 'center',
+              background: 'rgba(59, 130, 246, 0.1)',
+              color: '#3b82f6',
+              border: '1px solid rgba(59, 130, 246, 0.25)'
+            }}>HSD</div>
+            <div style={{position: 'relative', flex: 1}}>
+              <span style={{position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', fontWeight: 800, fontSize: '15px'}}>₹</span>
+              <input 
+                type="number" 
+                value={hsdPriceInput} 
                 onChange={(e) => setHsdPriceInput(e.target.value)}
-                readOnly={isShiftActive}
-                className={`w-full bg-[#1e293b] border rounded-lg py-2.5 pl-8 pr-3 text-slate-200 text-sm font-bold outline-none focus:border-gold transition-colors ${
-                  isShiftActive ? 'opacity-50 cursor-not-allowed bg-slate-800' : 'border-border'
-                }`}
+                step="0.01" 
+                placeholder="0.00"
+                style={{
+                  width: '100%',
+                  background: '#070c1a',
+                  border: '1px solid rgba(59, 130, 246, 0.2)',
+                  borderRadius: '10px',
+                  padding: '12px 12px 12px 28px',
+                  color: '#fff',
+                  fontWeight: 900,
+                  fontSize: '16px',
+                  outline: 'none',
+                  opacity: 1,
+                  fontFamily: 'monospace'
+                }}
+              />
+            </div>
+          </div>
+          
+          {/* MS Price Input */}
+          <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+            <div style={{
+              fontSize: '12px',
+              fontWeight: 900,
+              padding: '10px 14px',
+              borderRadius: '10px',
+              minWidth: '70px',
+              textAlign: 'center',
+              background: 'rgba(255, 209, 0, 0.1)',
+              color: '#FFD100',
+              border: '1px solid rgba(255, 209, 0, 0.25)'
+            }}>MS</div>
+            <div style={{position: 'relative', flex: 1}}>
+              <span style={{position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', fontWeight: 800, fontSize: '15px'}}>₹</span>
+              <input 
+                type="number" 
+                value={msPriceInput} 
+                onChange={(e) => setMsPriceInput(e.target.value)}
+                step="0.01" 
+                placeholder="0.00"
+                style={{
+                  width: '100%',
+                  background: '#070c1a',
+                  border: '1px solid rgba(255, 209, 0, 0.2)',
+                  borderRadius: '10px',
+                  padding: '12px 12px 12px 28px',
+                  color: '#fff',
+                  fontWeight: 900,
+                  fontSize: '16px',
+                  outline: 'none',
+                  opacity: 1,
+                  fontFamily: 'monospace'
+                }}
               />
             </div>
           </div>
         </div>
 
-        {/* Warning label & button status for price changes during shift */}
-        {isShiftActive ? (
-          <div className="mt-4 flex flex-col gap-3">
-            <div className="text-red text-xs font-bold leading-normal bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center">
-              🔒 Price changes are locked during an active shift. Only the owner can change prices before the next shift starts.
-            </div>
-            <button
-              type="button"
-              disabled
-              className="w-full py-3.5 rounded-xl border-none bg-gold text-black font-extrabold text-[15px] opacity-40 cursor-not-allowed flex items-center justify-center gap-1.5"
-            >
-              <span>🔒 Save Prices</span>
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={handleSavePrices}
-            className={`w-full py-3.5 rounded-xl border-none font-extrabold text-[15px] cursor-pointer mt-4 transition-all ${
-              isPricesSavedFlash ? 'bg-green text-white' : 'bg-gold hover:opacity-90'
-            }`}
-          >
-            {isPricesSavedFlash ? '✓ Prices Saved!' : 'Save Prices'}
-          </button>
-        )}
-
-        {/* Current rates display pills */}
-        <div className="flex gap-2.5 mt-4">
-          <div className="flex-1 bg-bg border border-border rounded-xl p-3 text-center">
-            <div className="text-[10px] text-muted font-bold uppercase tracking-wider">
-              MS / Petrol
-            </div>
-            <div className="text-[20px] font-black text-gold mt-1">
-              ₹{prices.ms.toFixed(2)}
-            </div>
-          </div>
-          <div className="flex-1 bg-bg border border-border rounded-xl p-3 text-center">
-            <div className="text-[10px] text-muted font-bold uppercase tracking-wider">
-              HSD / Diesel
-            </div>
-            <div className="text-[20px] font-black text-blue mt-1">
-              ₹{prices.hsd.toFixed(2)}
-            </div>
-          </div>
-        </div>
+        <button 
+          onClick={handleSavePrices}
+          style={{
+            width: '100%',
+            padding: '14px',
+            borderRadius: '12px',
+            border: 'none',
+            background: 'linear-gradient(135deg, #FFD100, #fbbf24)',
+            color: '#001440',
+            fontWeight: 900,
+            fontSize: '14px',
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+            boxShadow: '0 4px 15px rgba(255, 209, 0, 0.2)'
+          }}
+        >
+          {isPricesSavedFlash ? '✓ Rates Saved!' : 'Save Prices'}
+        </button>
       </div>
 
-      {/* Change PIN Section */}
-      <div className="bg-card rounded-2xl border border-border p-5">
-        <div className="text-slate-200 font-bold text-[16px] mb-1">
-          🔑 Change Owner PIN
-        </div>
-        <div className="text-muted text-xs mb-4">
-          Update the 4-digit security PIN used to unlock settings.
-        </div>
-
-        <form onSubmit={handleSavePin} className="flex gap-2">
-          <input
-            type="password"
-            maxLength={4}
-            pattern="\d*"
-            inputMode="numeric"
-            placeholder="Enter new 4-digit PIN"
-            value={newPin}
-            onChange={(e) => setNewPin(e.target.value)}
-            className="flex-grow bg-bg border border-border rounded-lg py-2.5 px-3.5 text-slate-200 text-sm font-semibold outline-none focus:border-gold"
-          />
-          <button
+      <div className="s-section" style={{
+        background: 'linear-gradient(135deg, #0c1224 0%, #080b18 100%)',
+        borderRadius: '20px',
+        padding: '20px',
+        border: '1px solid rgba(255, 255, 255, 0.06)',
+        marginBottom: '16px',
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)'
+      }}>
+        <div style={{fontSize: '16px', fontWeight: 900, color: '#f8fafc', marginBottom: '4px'}}>🔑 Owner PIN</div>
+        <div style={{fontSize: '12px', color: '#94a3b8', marginBottom: '16px'}}>Update the secret 4-digit manager PIN</div>
+        
+        <form onSubmit={handleSavePin}>
+          <div style={{position: 'relative', marginBottom: '16px'}}>
+            <input 
+              type="password" 
+              placeholder="Enter new 4-digit PIN" 
+              inputMode="numeric" 
+              maxLength={4}
+              value={newPin}
+              onChange={(e) => setNewPin(e.target.value)}
+              style={{
+                width: '100%',
+                background: '#040814',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '12px',
+                padding: '14px 16px',
+                color: '#fff',
+                fontWeight: 900,
+                fontSize: '15px',
+                outline: 'none',
+                textAlign: 'center',
+                letterSpacing: '8px'
+              }}
+            />
+          </div>
+          <button 
             type="submit"
-            className="bg-gold text-black font-extrabold text-xs px-4 rounded-lg hover:opacity-95 transition-opacity"
+            style={{
+              width: '100%', 
+              padding: '14px', 
+              borderRadius: '12px', 
+              background: 'rgba(255, 255, 255, 0.05)', 
+              color: '#f8fafc', 
+              fontWeight: 800,
+              fontSize: '14px',
+              border: '1px solid rgba(255,255,255,0.08)',
+              cursor: 'pointer',
+              transition: 'all 0.15s'
+            }} 
           >
             Update PIN
           </button>
         </form>
         {pinMessage && (
-          <div
-            className={`text-xs font-bold mt-2.5 ${
-              pinMessage.includes('❌') ? 'text-red' : 'text-green'
-            }`}
-          >
+          <div style={{
+            fontSize: '12px', 
+            fontWeight: 800, 
+            marginTop: '12px', 
+            textAlign: 'center',
+            color: pinMessage.includes('❌') ? '#ef4444' : '#22c55e'
+          }}>
             {pinMessage}
           </div>
         )}
       </div>
 
-      {/* Shift Info Section */}
-      {isShiftActive && (
-        <div className="bg-card rounded-2xl border border-border p-5">
-          <div className="text-slate-200 font-bold text-[16px] mb-2">
-            ℹ️ Shift Info
+      <div className="s-section" style={{
+        background: 'linear-gradient(135deg, #0c1224 0%, #080b18 100%)',
+        borderRadius: '20px',
+        padding: '20px',
+        border: '1px solid rgba(255, 255, 255, 0.06)',
+        marginBottom: '16px',
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)'
+      }}>
+        <div style={{fontSize: '16px', fontWeight: 900, color: '#f8fafc', marginBottom: '4px'}}>✉️ Owner Email</div>
+        <div style={{fontSize: '12px', color: '#94a3b8', marginBottom: '16px'}}>Configure the email address for Shift Start OTPs</div>
+        
+        <form onSubmit={handleSaveEmail}>
+          <div style={{position: 'relative', marginBottom: '16px'}}>
+            <input 
+              type="email" 
+              placeholder="owner@example.com" 
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
+              style={{
+                width: '100%',
+                background: '#040814',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '12px',
+                padding: '14px 16px',
+                color: '#fff',
+                fontWeight: 800,
+                fontSize: '15px',
+                outline: 'none',
+              }}
+            />
           </div>
-          <div className="text-sm text-sub leading-loose font-medium">
-            <div className="flex justify-between border-b border-border/50 py-1">
-              <span>DSM</span>
-              <span className="text-slate-200 font-bold">{dsmName}</span>
-            </div>
-            <div className="flex justify-between border-b border-border/50 py-1">
-              <span>Shift Type</span>
-              <span className="text-slate-200 font-bold uppercase">{shiftType} Shift</span>
-            </div>
-            <div className="flex justify-between py-1">
-              <span>Started</span>
-              <span className="text-slate-200 font-bold">{fmtTime(startTime)}</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* End Shift Button at the absolute bottom */}
-      {isShiftActive && (
-        <div className="mt-4">
-          <button
-            type="button"
-            onClick={onEndShiftInitiate}
-            className="w-full py-4 rounded-xl border-none bg-red hover:bg-red-600 text-white font-extrabold text-[15px] cursor-pointer flex items-center justify-center gap-1 shadow-md shadow-red/10 transition-colors"
+          <button 
+            type="submit"
+            style={{
+              width: '100%', 
+              padding: '14px', 
+              borderRadius: '12px', 
+              background: 'linear-gradient(135deg, #FFD100, #fbbf24)', 
+              color: '#001440', 
+              fontWeight: 900,
+              fontSize: '14px',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+              boxShadow: '0 4px 15px rgba(255, 209, 0, 0.15)'
+            }} 
           >
-            ⚠️ End Shift & Clear Data
+            {isEmailSavedFlash ? '✓ Email Saved!' : 'Update Email'}
           </button>
+        </form>
+      </div>
+
+      <div className="s-section" style={{
+        background: 'linear-gradient(135deg, #0c1224 0%, #080b18 100%)',
+        borderRadius: '20px',
+        padding: '20px',
+        border: '1px solid rgba(255, 255, 255, 0.06)',
+        marginBottom: '16px',
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)'
+      }}>
+        <div style={{fontSize: '16px', fontWeight: 900, color: '#f8fafc', marginBottom: '4px'}}>🔄 Shift Data Management</div>
+        <div style={{fontSize: '12px', color: '#94a3b8', marginBottom: '16px'}}>Manage local storage, logs & shift resets</div>
+        
+        <button 
+          onClick={onEndShiftInitiate}
+          style={{
+            width: '100%', 
+            padding: '14px', 
+            borderRadius: '12px', 
+            background: 'linear-gradient(135deg, #ef4444, #b91c1c)', 
+            color: '#fff', 
+            fontWeight: 850,
+            fontSize: '14px',
+            border: 'none',
+            cursor: 'pointer',
+            boxShadow: '0 4px 15px rgba(239, 68, 68, 0.25)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+            marginBottom: '12px'
+          }} 
+        >
+          🚨 End Shift & Clear Data
+        </button>
+        
+        <div style={{
+          fontSize: '11px', 
+          color: '#64748b', 
+          lineHeight: 1.5,
+          background: 'rgba(0,0,0,0.15)',
+          padding: '10px 14px',
+          borderRadius: '10px',
+          borderLeft: '3px solid #64748b'
+        }}>
+          ⚠️ Warning: This action will erase all cached shift entries, reset opening and closing totalizers, and lock the screen. Share the final shift report before proceeding.
         </div>
-      )}
+      </div>
+
     </div>
   );
 }

@@ -33,6 +33,11 @@ async def lifespan(app: FastAPI):
         hsd = db.query(models.Config).filter(models.Config.key == "hsd_price").first()
         if not hsd:
             db.add(models.Config(key="hsd_price", value="89.00"))
+
+        # Seed Owner Phone
+        phone = db.query(models.Config).filter(models.Config.key == "owner_phone").first()
+        if not phone:
+            db.add(models.Config(key="owner_phone", value=""))
             
         db.commit()
     except Exception as e:
@@ -43,8 +48,8 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(
-    title="NSS FuelTrack API",
-    description="Backend API for Daily Shift Manager payment tracking at NSS Fuel Station",
+    title="NSS FuelTrack API V2",
+    description="Backend API for Daily Shift Manager payment tracking at NSS Fuel Station — Version 2 with Nozzle Tracking, Deductions, and Edit Audit",
     lifespan=lifespan
 )
 
@@ -79,7 +84,8 @@ MODE_LABELS = {
     "penlabs": "Penlabs",
     "phonepay": "PhonePe EDC",
     "otp": "OTP/Unbarath",
-    "credit": "Credit"
+    "credit": "Credit",
+    "testing": "Testing"
 }
 
 # ── API ENDPOINTS ──
@@ -116,6 +122,25 @@ def change_pin(payload: schemas.UpdatePinRequest, db: Session = Depends(get_db))
     db.commit()
     return {"message": "PIN updated successfully"}
 
+# --- Owner Phone Routes ---
+
+@app.get("/api/config/phone", status_code=status.HTTP_200_OK)
+def get_owner_phone(db: Session = Depends(get_db)):
+    phone_config = db.query(models.Config).filter(models.Config.key == "owner_phone").first()
+    return {"phone": phone_config.value if phone_config else ""}
+
+@app.put("/api/config/phone", status_code=status.HTTP_200_OK)
+def update_owner_phone(payload: dict, db: Session = Depends(get_db)):
+    phone = payload.get("phone", "")
+    phone_config = db.query(models.Config).filter(models.Config.key == "owner_phone").first()
+    if not phone_config:
+        phone_config = models.Config(key="owner_phone", value=phone)
+        db.add(phone_config)
+    else:
+        phone_config.value = phone
+    db.commit()
+    return {"message": "Phone updated", "phone": phone}
+
 # --- Price Settings Routes ---
 
 @app.get("/api/prices", response_model=schemas.PricesResponse)
@@ -134,14 +159,6 @@ def update_prices(payload: schemas.PricesUpdate, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Prices must be positive values"
-        )
-        
-    # Loophole 3: Price change is blocked mid-shift
-    active_shift = db.query(models.Shift).filter(models.Shift.active == True).first()
-    if active_shift:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Price changes are locked during an active shift. Only the owner can change prices before the next shift starts."
         )
         
     ms_config = db.query(models.Config).filter(models.Config.key == "ms_price").first()
@@ -174,8 +191,14 @@ def get_active_shift(db: Session = Depends(get_db)):
         .filter(models.Transaction.shift_id == active_shift.id)\
         .order_by(models.Transaction.timestamp.desc())\
         .all()
+    
+    deds = db.query(models.Deduction)\
+        .filter(models.Deduction.shift_id == active_shift.id)\
+        .order_by(models.Deduction.time.desc())\
+        .all()
         
     active_shift.transactions = txns
+    active_shift.deductions = deds
     return active_shift
 
 @app.post("/api/shift/start", response_model=schemas.ShiftResponse)
@@ -196,7 +219,12 @@ def start_shift(payload: schemas.ShiftStart, db: Session = Depends(get_db)):
         dsm_name=payload.dsmName,
         shift_type=payload.shiftType,
         start_time=payload.startTime,
-        active=True
+        active=True,
+        # V2: Store nozzle opening readings
+        opening_n1=payload.openingN1,
+        opening_n2=payload.openingN2,
+        opening_n3=payload.openingN3,
+        opening_n4=payload.openingN4,
     )
     
     db.add(new_shift)
@@ -217,6 +245,23 @@ def end_shift(db: Session = Depends(get_db)):
     active_shift.end_time = datetime.utcnow()
     db.commit()
     return {"message": "Shift ended successfully"}
+
+# V2: Update closing nozzle readings
+@app.put("/api/shift/active/close-readings", status_code=status.HTTP_200_OK)
+def update_closing_readings(payload: schemas.ClosingReadingsUpdate, db: Session = Depends(get_db)):
+    active_shift = db.query(models.Shift).filter(models.Shift.active == True).first()
+    if not active_shift:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active shift found"
+        )
+    
+    active_shift.closing_n1 = payload.closingN1
+    active_shift.closing_n2 = payload.closingN2
+    active_shift.closing_n3 = payload.closingN3
+    active_shift.closing_n4 = payload.closingN4
+    db.commit()
+    return {"message": "Closing readings updated"}
 
 # --- Transaction Routes ---
 
@@ -276,7 +321,12 @@ def create_transaction(payload: schemas.TransactionCreate, db: Session = Depends
         timestamp=datetime.utcnow(),
         is_override=is_override,
         override_reason=override_reason if is_override else None,
-        deleted=False
+        deleted=False,
+        # V2 fields
+        nozzle=payload.nozzle,
+        credit_name=payload.creditName,
+        credit_phone=payload.creditPhone,
+        credit_vehicle=payload.creditVehicle,
     )
     
     db.add(new_tx)
@@ -306,3 +356,95 @@ def delete_transaction(tx_id: str, payload: schemas.DeleteTransactionRequest, db
     
     db.commit()
     return {"message": "Transaction soft-deleted successfully"}
+
+# V2: Edit transaction (owner-approved, one-time OTP)
+@app.put("/api/transactions/{tx_id}/edit", response_model=schemas.TransactionResponse)
+def edit_transaction(tx_id: str, payload: schemas.TransactionEdit, db: Session = Depends(get_db)):
+    txn = db.query(models.Transaction).filter(models.Transaction.id == tx_id).first()
+    if not txn:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transaction not found"
+        )
+    
+    # Store originals before edit (only first time)
+    if not txn.edited:
+        txn.original_amount = txn.amount
+        txn.original_liters = txn.liters
+        txn.original_mode = txn.payment_mode
+    
+    # Apply edits
+    if payload.amount is not None:
+        txn.amount = payload.amount
+    if payload.liters is not None:
+        txn.liters = payload.liters
+    if payload.nozzle is not None:
+        txn.nozzle = payload.nozzle
+    if payload.paymentMode is not None:
+        txn.payment_mode = payload.paymentMode
+        txn.mode_label = MODE_LABELS.get(payload.paymentMode, txn.mode_label)
+    if payload.creditName is not None:
+        txn.credit_name = payload.creditName
+    if payload.creditPhone is not None:
+        txn.credit_phone = payload.creditPhone
+    
+    txn.edited = True
+    txn.edited_at = datetime.utcnow()
+    txn.edited_by = payload.editedBy
+    txn.edit_otp_ref = payload.otpRef
+    
+    db.commit()
+    db.refresh(txn)
+    return txn
+
+# --- Deduction Routes (V2) ---
+
+@app.post("/api/shift/active/deductions", response_model=schemas.DeductionResponse)
+def create_deduction(payload: schemas.DeductionCreate, db: Session = Depends(get_db)):
+    active_shift = db.query(models.Shift).filter(models.Shift.active == True).first()
+    if not active_shift:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No active shift to add deductions to"
+        )
+    
+    if payload.type not in ("reward", "expense"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Deduction type must be 'reward' or 'expense'"
+        )
+    
+    if payload.amount <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Deduction amount must be positive"
+        )
+    
+    ded_id = f"ded_{int(datetime.utcnow().timestamp())}_{os.urandom(2).hex()}"
+    
+    new_ded = models.Deduction(
+        id=ded_id,
+        shift_id=active_shift.id,
+        type=payload.type,
+        amount=payload.amount,
+        note=payload.note or "",
+        time=payload.time or datetime.utcnow()
+    )
+    
+    db.add(new_ded)
+    db.commit()
+    db.refresh(new_ded)
+    return new_ded
+
+@app.delete("/api/shift/active/deductions/{ded_id}", status_code=status.HTTP_200_OK)
+def delete_deduction(ded_id: str, db: Session = Depends(get_db)):
+    ded = db.query(models.Deduction).filter(models.Deduction.id == ded_id).first()
+    if not ded:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Deduction not found"
+        )
+    
+    db.delete(ded)
+    db.commit()
+    return {"message": "Deduction removed"}

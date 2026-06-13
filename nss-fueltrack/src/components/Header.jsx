@@ -20,11 +20,11 @@ export default function Header({
   };
 
   return (
-    <div className="sticky top-0 z-[100] bg-card border-b border-border flex flex-col">
+    <div id="hdr" className="sticky top-0 z-[100] flex flex-col shadow-2xl">
       {/* High Credit Alert Banner */}
       {isHighCredit && (
-        <div className="bg-red text-white py-1.5 px-4 text-center text-xs font-bold animate-pulse flex items-center justify-center gap-1">
-          <span>⚠️ High Credit Limit Alert:</span>
+        <div className="bg-red-600 text-white py-1.5 px-4 text-center text-xs font-bold animate-pulse flex items-center justify-center gap-1 select-none">
+          <span>⚠️ High Credit Alert:</span>
           <span>{fmtRupee(totalCredit)} has been given on credit!</span>
         </div>
       )}
@@ -32,14 +32,14 @@ export default function Header({
       <div className="flex justify-between items-center px-[18px] py-[14px]">
         {/* Left Side: DSM and Shift info */}
         <div>
-          <div className="font-extrabold text-[18px] text-gold leading-tight">
+          <div id="dsm-name" className="font-black text-[18px] leading-tight">
             {dsmName || '—'}
           </div>
-          <div className="text-[11px] text-muted font-bold tracking-[1px] uppercase mt-0.5">
-            {(shiftType || 'DAY').toUpperCase()} SHIFT · {duration}
+          <div id="shift-meta" className="text-[10px] font-black tracking-wider uppercase mt-1">
+            {(shiftType || 'day').toUpperCase()} SHIFT · {duration}
           </div>
           {startTime && (
-            <div className="text-[10px] text-muted/80 mt-0.5">
+            <div className="text-[9px] text-[#93c5fd] font-bold mt-0.5">
               Started {fmtTime(startTime)}
             </div>
           )}
@@ -47,10 +47,10 @@ export default function Header({
 
         {/* Right Side: Live Clock and Txn count */}
         <div className="text-right">
-          <div className="font-bold text-[20px] font-mono tracking-tight leading-tight">
+          <div id="live-time" className="font-black text-[20px] font-mono tracking-tight leading-tight">
             {clock}
           </div>
-          <div className="text-[12px] text-gold font-semibold mt-0.5">
+          <div id="txn-count" className="text-[11px] font-black uppercase mt-1">
             {txnCount} TXN
           </div>
         </div>

@@ -8,27 +8,45 @@ export default function BottomNav({
 }) {
   const tabs = [
     { id: 'dashboard', label: 'Home', icon: '🏠' },
+    { id: 'history', label: 'History', icon: '📋' },
     { id: 'entry', label: 'Entry', icon: '➕' },
     { id: 'report', label: 'Report', icon: '📊' },
-    { id: 'history', label: 'History', icon: '📋' },
     { id: 'settings', label: 'Settings', icon: '⚙️' }
   ];
 
   return (
-    <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] bg-card border-t border-border flex z-[100]">
+    <div 
+      id="bnav" 
+      className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] bg-card border-t border-border flex z-[100]"
+    >
       {tabs.map((tab) => {
         const isActive = activeTab === tab.id;
         const isSettings = tab.id === 'settings';
         const showLock = isSettings && hasActiveShift && !isSettingsUnlocked;
         const showRedDot = isSettings && isSettingsUnlocked;
 
+        if (tab.id === 'entry') {
+          return (
+            <div id="nb-entry" key={tab.id}>
+              <button
+                id="nb-entry-btn"
+                onClick={() => onTabChange(tab.id)}
+                className={isActive ? 'active-fab' : ''}
+              >
+                {tab.icon}
+              </button>
+              <span id="nb-entry-lbl">
+                {tab.label}
+              </span>
+            </div>
+          );
+        }
+
         return (
           <button
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
-            className={`flex-1 flex flex-direction-col flex-col items-center pt-2.5 pb-3.5 bg-none border-none cursor-pointer gap-0.5 text-[11px] transition-colors relative ${
-              isActive ? 'text-gold' : 'text-muted hover:text-sub'
-            }`}
+            className={`nb ${isActive ? 'active' : ''} relative`}
           >
             <div className="relative text-[20px] flex items-center justify-center">
               {/* Main Tab Icon */}
@@ -53,3 +71,4 @@ export default function BottomNav({
     </div>
   );
 }
+
