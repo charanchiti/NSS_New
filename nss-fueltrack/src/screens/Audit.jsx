@@ -1,39 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { api } from '../api';
+import { saveAuditState } from '../utils/indexedDb';
 
-export default function Audit({ prices, activeShift, onBack, onAuditSubmit }) {
-  const [step, setStep] = useState(1);
-  const [dsmName, setDsmName] = useState(activeShift?.dsmName || '');
-  const [shiftType, setShiftType] = useState(activeShift?.shiftType || 'day');
+export default function Audit({ prices, activeShift, resumedState, onBack, onAuditSubmit }) {
+  const [step, setStep] = useState(resumedState?.step || 1);
+  const [dsmName, setDsmName] = useState(resumedState?.dsmName ?? activeShift?.dsmName ?? '');
+  const [shiftType, setShiftType] = useState(resumedState?.shiftType ?? activeShift?.shiftType ?? 'day');
   const [shiftDate, setShiftDate] = useState(() => {
+    if (resumedState?.shiftDate) return resumedState.shiftDate;
     if (activeShift?.startTime) {
       return new Date(activeShift.startTime).toLocaleDateString('en-CA'); // YYYY-MM-DD
     }
     return new Date().toLocaleDateString('en-CA');
   });
-  const [startTime, setStartTime] = useState('08:00');
-  const [endTime, setEndTime] = useState('17:00');
+  const [startTime, setStartTime] = useState(resumedState?.startTime ?? '08:00');
+  const [endTime, setEndTime] = useState(resumedState?.endTime ?? '17:00');
 
   // Meter readings
-  const [openN1, setOpenN1] = useState(activeShift?.openingN1?.toString() || '');
-  const [openN2, setOpenN2] = useState(activeShift?.openingN2?.toString() || '');
-  const [openN3, setOpenN3] = useState(activeShift?.openingN3?.toString() || '');
-  const [openN4, setOpenN4] = useState(activeShift?.openingN4?.toString() || '');
+  const [openN1, setOpenN1] = useState(resumedState?.openN1 ?? activeShift?.openingN1?.toString() ?? '');
+  const [openN2, setOpenN2] = useState(resumedState?.openN2 ?? activeShift?.openingN2?.toString() ?? '');
+  const [openN3, setOpenN3] = useState(resumedState?.openN3 ?? activeShift?.openingN3?.toString() ?? '');
+  const [openN4, setOpenN4] = useState(resumedState?.openN4 ?? activeShift?.openingN4?.toString() ?? '');
 
-  const [closeN1, setCloseN1] = useState('');
-  const [closeN2, setCloseN2] = useState('');
-  const [closeN3, setCloseN3] = useState('');
-  const [closeN4, setCloseN4] = useState('');
+  const [closeN1, setCloseN1] = useState(resumedState?.closeN1 ?? '');
+  const [closeN2, setCloseN2] = useState(resumedState?.closeN2 ?? '');
+  const [closeN3, setCloseN3] = useState(resumedState?.closeN3 ?? '');
+  const [closeN4, setCloseN4] = useState(resumedState?.closeN4 ?? '');
 
   // Payments Collected
-  const [cashCollected, setCashCollected] = useState('');
-  const [upiCollected, setUpiCollected] = useState('');
-  const [pineLabsCollected, setPineLabsCollected] = useState('');
-  const [otpVoucherCollected, setOtpVoucherCollected] = useState('');
+  const [cashCollected, setCashCollected] = useState(resumedState?.cashCollected ?? '');
+  const [upiCollected, setUpiCollected] = useState(resumedState?.upiCollected ?? '');
+  const [pineLabsCollected, setPineLabsCollected] = useState(resumedState?.pineLabsCollected ?? '');
+  const [otpVoucherCollected, setOtpVoucherCollected] = useState(resumedState?.otpVoucherCollected ?? '');
 
   // Sub-entries state (local queue to be submitted at Step 4)
-  const [creditEntries, setCreditEntries] = useState([]);
-  const [expenseEntries, setExpenseEntries] = useState([]);
+  const [creditEntries, setCreditEntries] = useState(resumedState?.creditEntries ?? []);
+  const [expenseEntries, setExpenseEntries] = useState(resumedState?.expenseEntries ?? []);
 
   // Modals/Inline forms for adding sub-entries
   const [showCreditForm, setShowCreditForm] = useState(false);
@@ -47,12 +49,32 @@ export default function Audit({ prices, activeShift, onBack, onAuditSubmit }) {
   const [expenseAmount, setExpenseAmount] = useState('');
 
   // Calibration and deductions
-  const [testingHsd, setTestingHsd] = useState('');
-  const [testingMs, setTestingMs] = useState('');
-  const [loyaltyRewards, setLoyaltyRewards] = useState('');
+  const [testingHsd, setTestingHsd] = useState(resumedState?.testingHsd ?? '');
+  const [testingMs, setTestingMs] = useState(resumedState?.testingMs ?? '');
+  const [loyaltyRewards, setLoyaltyRewards] = useState(resumedState?.loyaltyRewards ?? '');
 
   // API loading overlay
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // --- Auto-Save Effect ---
+  useEffect(() => {
+    const currentState = {
+      step, dsmName, shiftType, shiftDate, startTime, endTime,
+      openN1, openN2, openN3, openN4,
+      closeN1, closeN2, closeN3, closeN4,
+      cashCollected, upiCollected, pineLabsCollected, otpVoucherCollected,
+      creditEntries, expenseEntries,
+      testingHsd, testingMs, loyaltyRewards
+    };
+    saveAuditState(currentState).catch(console.error);
+  }, [
+    step, dsmName, shiftType, shiftDate, startTime, endTime,
+    openN1, openN2, openN3, openN4,
+    closeN1, closeN2, closeN3, closeN4,
+    cashCollected, upiCollected, pineLabsCollected, otpVoucherCollected,
+    creditEntries, expenseEntries,
+    testingHsd, testingMs, loyaltyRewards
+  ]);
 
   // --- Dynamic Calculations ---
   // Rates

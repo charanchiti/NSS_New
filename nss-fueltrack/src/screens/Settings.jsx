@@ -10,7 +10,8 @@ export default function Settings({
   onEndShiftInitiate,
   onSavePin,
   ownerEmail,
-  onSaveEmail
+  onSaveEmail,
+  onRefreshData
 }) {
   const [msPriceInput, setMsPriceInput] = useState(prices.ms.toString());
   const [hsdPriceInput, setHsdPriceInput] = useState(prices.hsd.toString());
@@ -355,10 +356,31 @@ export default function Settings({
           background: 'rgba(0,0,0,0.15)',
           padding: '10px 14px',
           borderRadius: '10px',
-          borderLeft: '3px solid #64748b'
+          borderLeft: '3px solid #64748b',
+          marginBottom: '16px'
         }}>
           ⚠️ Warning: This action will erase all cached shift entries, reset opening and closing totalizers, and lock the screen. Share the final shift report before proceeding.
         </div>
+        
+        <button 
+          onClick={onRefreshData}
+          style={{
+            width: '100%', 
+            padding: '14px', 
+            borderRadius: '12px', 
+            background: 'linear-gradient(135deg, #10b981, #059669)', 
+            color: '#fff', 
+            fontWeight: 850,
+            fontSize: '14px',
+            border: 'none',
+            cursor: 'pointer',
+            boxShadow: '0 4px 15px rgba(16, 185, 129, 0.25)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px'
+          }} 
+        >
+          🔄 Refresh From Saved Data
+        </button>
       </div>
 
     </div>

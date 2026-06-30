@@ -30,7 +30,9 @@ import {
   clearLocalTransactions,
   syncLocalTransactions,
   getPendingLocalTransactions,
-  pruneOldLocalTransactions
+  pruneOldLocalTransactions,
+  getAuditState,
+  clearAuditState
 } from './utils/indexedDb';
 
 export default function App() {
@@ -41,6 +43,12 @@ export default function App() {
   const [ownerPin, setOwnerPin] = useState('0000');
   const [dsmLockCode, setDsmLockCode] = useState('1234');
   
+  // Resume Shift States
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  const [pendingResumeShift, setPendingResumeShift] = useState(null);
+  const [pendingResumeTxns, setPendingResumeTxns] = useState([]);
+  const [pendingAuditState, setPendingAuditState] = useState(null);
+
   // Lock states
   const [isLocked, setIsLocked] = useState(false);
   const [showLockModal, setShowLockModal] = useState(false);
@@ -183,42 +191,54 @@ export default function App() {
         setOwnerPin(activeOwnerPin);
         setDsmLockCode(activeDsmLock);
 
-        // 4. Load Active Shift from Server / IndexedDB fallback
-        let currentShift = null;
-        let currentTxns = [];
-
+        // 4. Check Local Active Shift for Resume Prompt
+        let localShift = null;
         try {
-          const activeShift = await api.fetchActiveShift();
-          if (activeShift) {
-            currentShift = {
-              id: activeShift.id,
-              dsmName: activeShift.dsm_name,
-              shiftType: activeShift.shift_type,
-              startTime: activeShift.start_time,
-              openingN1: activeShift.opening_n1 || 0,
-              openingN2: activeShift.opening_n2 || 0,
-              openingN3: activeShift.opening_n3 || 0,
-              openingN4: activeShift.opening_n4 || 0,
-            };
-            currentTxns = activeShift.transactions || [];
-            
-            // Cache to IndexedDB
-            await saveLocalShift(currentShift);
-            await syncLocalTransactions(currentTxns);
+          localShift = await getLocalShift();
+        } catch (e) {}
+        
+        if (localShift) {
+          const localTxns = await getLocalTransactions(localShift.id);
+          const auditState = await getAuditState();
+          
+          setPendingResumeShift(localShift);
+          setPendingResumeTxns(localTxns || []);
+          setPendingAuditState(auditState);
+          setShowResumeModal(true);
+          // Wait for user to decide before finalizing bootstrap UI
+        } else {
+          // If no local shift, fetch from server
+          let currentShift = null;
+          let currentTxns = [];
+          try {
+            const activeShift = await api.fetchActiveShift();
+            if (activeShift) {
+              currentShift = {
+                id: activeShift.id,
+                dsmName: activeShift.dsm_name,
+                shiftType: activeShift.shift_type,
+                startTime: activeShift.start_time,
+                openingN1: activeShift.opening_n1 || 0,
+                openingN2: activeShift.opening_n2 || 0,
+                openingN3: activeShift.opening_n3 || 0,
+                openingN4: activeShift.opening_n4 || 0,
+              };
+              currentTxns = activeShift.transactions || [];
+              
+              // Cache to IndexedDB
+              await saveLocalShift(currentShift);
+              await syncLocalTransactions(currentTxns);
+            }
+          } catch (err) {
+            console.warn("Backend offline, unable to fetch active shift on startup");
+            setIsServerOffline(true);
           }
-        } catch (err) {
-          console.warn("Backend offline, loading active shift from IndexedDB...");
-          setIsServerOffline(true);
-          currentShift = await getLocalShift();
-          if (currentShift) {
-            currentTxns = await getLocalTransactions(currentShift.id);
-          }
-        }
 
-        if (currentShift) {
-          setShiftMeta(currentShift);
-          setTransactions(currentTxns);
-          setToastMessage("✅ Session synchronized successfully.");
+          if (currentShift) {
+            setShiftMeta(currentShift);
+            setTransactions(currentTxns);
+            setToastMessage("✅ Session synchronized successfully.");
+          }
         }
         
         // 5. Setup dynamic synchronization polling
@@ -372,6 +392,46 @@ export default function App() {
   }, [pinLockUntil]);
 
   // ── ACTION HANDLERS ──
+
+  const handleResumeShift = () => {
+    setShiftMeta(pendingResumeShift);
+    setTransactions(pendingResumeTxns);
+    setShowResumeModal(false);
+    setPendingResumeShift(null);
+    setPendingResumeTxns([]);
+    // pendingAuditState is kept so Audit.jsx can read it when opened.
+  };
+
+  const handleStartNewShiftAfterResumePrompt = async () => {
+    await clearLocalShift();
+    await clearLocalTransactions();
+    await clearAuditState();
+    setShowResumeModal(false);
+    setPendingResumeShift(null);
+    setPendingResumeTxns([]);
+    setPendingAuditState(null);
+    setActiveTab('dashboard');
+  };
+
+  const handleRefreshData = async () => {
+    setIsLoading(true);
+    try {
+      const localShift = await getLocalShift();
+      if (localShift) {
+        const localTxns = await getLocalTransactions(localShift.id);
+        setShiftMeta(localShift);
+        setTransactions(localTxns || []);
+        setToastMessage("🔄 Application state refreshed from local storage.");
+      } else {
+        setToastMessage("ℹ️ No active shift found in local storage.");
+      }
+    } catch (err) {
+      alert(`Error refreshing data: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+      setTimeout(() => setToastMessage(null), 3000);
+    }
+  };
 
   // Start Shift Setup - Directly Launch Shift (No longer requires OTP at this stage)
   const handleInitiateStartShift = async () => {
@@ -687,6 +747,7 @@ export default function App() {
       
       await clearLocalShift();
       await clearLocalTransactions();
+      await clearAuditState();
       
       setShiftMeta(null);
       setTransactions([]);
@@ -885,6 +946,7 @@ export default function App() {
       }
       await clearLocalShift();
       await clearLocalTransactions();
+      await clearAuditState();
       
       setShiftMeta(null);
       setTransactions([]);
@@ -925,6 +987,7 @@ export default function App() {
           <Audit 
             prices={prices} 
             activeShift={shiftMeta}
+            resumedState={pendingAuditState}
             onBack={() => setActiveTab('dashboard')} 
             onAuditSubmit={handleAuditSubmit}
           />
@@ -1713,6 +1776,39 @@ export default function App() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      
+      {/* ── MODAL 7: RESUME SHIFT PROMPT ── */}
+      {showResumeModal && (
+        <div className="fixed inset-0 z-[300] bg-black/85 flex items-center justify-center p-6 select-none backdrop-blur-md">
+          <div className="bg-[#0b1329] border-2 border-[#FFD100]/30 rounded-3xl p-6 w-full max-w-[360px] shadow-2xl text-center">
+            <div className="text-[28px] mb-2 select-none">⚠️</div>
+            <h3 className="text-[#FFD100] font-black text-lg mb-1 tracking-wide uppercase">
+              Previous Shift Detected
+            </h3>
+            <p className="text-slate-400 text-xs mb-6 leading-relaxed">
+              An unfinished shift from {pendingResumeShift?.startTime ? new Date(pendingResumeShift.startTime).toLocaleString() : 'earlier'} was found. Would you like to resume it?
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={handleResumeShift}
+                className="w-full py-4 rounded-xl bg-gradient-to-r from-[#FFD100] to-amber-500 border-none text-[#001440] font-black text-xs uppercase tracking-wider cursor-pointer shadow-lg active:scale-95 transition-all"
+              >
+                ▶️ Resume Shift
+              </button>
+              <button
+                onClick={() => {
+                  if (window.confirm("Are you sure? This will archive the previous unfinished shift locally.")) {
+                    handleStartNewShiftAfterResumePrompt();
+                  }
+                }}
+                className="w-full py-4 rounded-xl bg-slate-800 border-none text-slate-350 font-bold text-xs uppercase tracking-wider cursor-pointer active:scale-95 transition-all"
+              >
+                🔄 Start New Shift
+              </button>
+            </div>
           </div>
         </div>
       )}

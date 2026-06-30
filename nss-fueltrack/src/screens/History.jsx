@@ -122,7 +122,7 @@ export default function History({ transactions = [], onDeleteInitiate, onEditIni
                 key={tx.id}
                 tx={tx}
                 onDelete={() => handleDeleteClick(tx)}
-                onEdit={() => onEditInitiate(tx)}
+                onEdit={(id) => onEditInitiate(id)}
               />
             ))}
           </div>

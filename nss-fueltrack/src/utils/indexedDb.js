@@ -243,3 +243,25 @@ export function pruneOldLocalTransactions() {
     }
   });
 }
+
+// Audit State Operations
+export function saveAuditState(state) {
+  return saveLocalConfig('nss_audit_state', state);
+}
+
+export function getAuditState() {
+  return getLocalConfig('nss_audit_state');
+}
+
+export function clearAuditState() {
+  return new Promise((resolve, reject) => {
+    try {
+      const store = getStore("config", "readwrite");
+      const request = store.delete('nss_audit_state');
+      request.onsuccess = () => resolve();
+      request.onerror = (e) => reject(e.target.error);
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
