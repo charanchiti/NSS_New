@@ -81,17 +81,30 @@ export default function Report({
   const doShareReport = async () => {
     try {
       const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+
       if (!reportRef.current) return;
       const canvas = await html2canvas(reportRef.current, {
         backgroundColor: '#001440',
         scale: 2
       });
-      const link = document.createElement('a');
-      link.download = `NSS_Shift_Report_${dsmName || 'DSM'}_${new Date().toISOString().slice(0, 10)}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
+      
+      const imgData = canvas.toDataURL('image/png');
+      
+      // Calculate aspect ratio to fit the PDF
+      const pdfWidth = canvas.width;
+      const pdfHeight = canvas.height;
+      
+      const pdf = new jsPDF({
+        orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [pdfWidth, pdfHeight]
+      });
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`NSS_Shift_Report_${dsmName || 'DSM'}_${new Date().toISOString().slice(0, 10)}.pdf`);
     } catch (err) {
-      alert('Failed to generate image. Try again.');
+      alert('Failed to generate PDF. Try again.');
       console.error(err);
     }
   };
@@ -248,6 +261,40 @@ export default function Report({
           </div>
         </div>
 
+        {/* QUICK SUMMARY */}
+        <div style={{
+          background: 'linear-gradient(135deg, #0c1224 0%, #080b18 100%)',
+          borderRadius: '20px',
+          padding: '16px',
+          border: '1px solid rgba(255, 255, 255, 0.06)',
+          margin: '16px 0',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+        }}>
+          <div style={{fontSize: '10px', fontWeight: 900, color: '#FFD100', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '12px'}}>
+            QUICK SUMMARY
+          </div>
+          <div style={{display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '8px', marginBottom: '8px'}}>
+            <div style={{background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)', borderRadius: '12px', padding: '12px'}}>
+              <div style={{fontSize: '9px', fontWeight: 800, color: '#93c5fd', textTransform: 'uppercase', marginBottom: '4px'}}>DIESEL (HSD) SOLD</div>
+              <div style={{fontSize: '16px', fontWeight: 900, color: '#3b82f6'}}>{hsdLiters.toFixed(2)} L</div>
+            </div>
+            <div style={{background: 'rgba(255, 209, 0, 0.1)', border: '1px solid rgba(255, 209, 0, 0.2)', borderRadius: '12px', padding: '12px'}}>
+              <div style={{fontSize: '9px', fontWeight: 800, color: '#fde68a', textTransform: 'uppercase', marginBottom: '4px'}}>PETROL (MS) SOLD</div>
+              <div style={{fontSize: '16px', fontWeight: 900, color: '#FFD100'}}>{msLiters.toFixed(2)} L</div>
+            </div>
+          </div>
+          <div style={{display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '8px'}}>
+            <div style={{background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.2)', borderRadius: '12px', padding: '12px'}}>
+              <div style={{fontSize: '9px', fontWeight: 800, color: '#86efac', textTransform: 'uppercase', marginBottom: '4px'}}>ACTUAL SALES</div>
+              <div style={{fontSize: '16px', fontWeight: 900, color: '#22c55e'}}>{fmt(grandTotal)}</div>
+            </div>
+            <div style={{background: 'rgba(139, 92, 246, 0.1)', border: '1px solid rgba(139, 92, 246, 0.2)', borderRadius: '12px', padding: '12px'}}>
+              <div style={{fontSize: '9px', fontWeight: 800, color: '#c4b5fd', textTransform: 'uppercase', marginBottom: '4px'}}>TRANSACTIONS</div>
+              <div style={{fontSize: '16px', fontWeight: 900, color: '#8b5cf6'}}>{totalTxns}</div>
+            </div>
+          </div>
+        </div>
+
         {/* SHIFT REPORT CONTAINER (FOR CANVAS CONVERSION) */}
         <div ref={reportRef} style={{
           background: 'linear-gradient(135deg, #001440 0%, #002255 100%)',
@@ -390,6 +437,30 @@ export default function Report({
             </>
           )}
 
+          {/* ADDITIONAL INSIGHTS */}
+          <div style={{
+            fontSize: '11px', 
+            fontWeight: 800, 
+            color: '#FFD100', 
+            letterSpacing: '1px', 
+            textTransform: 'uppercase', 
+            marginTop: '20px',
+            marginBottom: '10px',
+            borderBottom: '1px solid rgba(255,255,255,0.1)',
+            paddingBottom: '4px'
+          }}>
+            Additional Insights
+          </div>
+          <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px'}}>
+            <div style={{background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '10px'}}>
+              <div style={{fontSize: '9px', color: '#94a3b8', marginBottom: '2px'}}>Shift Start Time</div>
+              <div style={{fontSize: '12px', fontWeight: 800, color: '#fff'}}>{fmtTime(startTime)}</div>
+            </div>
+            <div style={{background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '10px'}}>
+              <div style={{fontSize: '9px', color: '#94a3b8', marginBottom: '2px'}}>Total Duration</div>
+              <div style={{fontSize: '12px', fontWeight: 800, color: '#fff'}}>{duration}</div>
+            </div>
+          </div>
         </div>
 
       </div>

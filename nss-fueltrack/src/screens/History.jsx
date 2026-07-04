@@ -9,6 +9,9 @@ export default function History({ transactions = [], onDeleteInitiate, onEditIni
   // Grand totals (Active only)
   const grandAmt = activeTxns.reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
 
+  // Tabs state
+  const [activeTab, setActiveTab] = useState('all');
+
   // Soft Delete Modal State
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [txToDelete, setTxToDelete] = useState(null);
@@ -97,37 +100,108 @@ export default function History({ transactions = [], onDeleteInitiate, onEditIni
         </div>
       </div>
 
-      <div className="sec" id="hist-title" style={{
-        fontSize: '11px',
-        fontWeight: 800,
-        color: '#94a3b8',
-        letterSpacing: '1.5px',
-        marginBottom: '10px',
-        marginTop: '6px'
-      }}>
-        ALL TRANSACTIONS ({totalCount})
+      {/* Tabs */}
+      <div style={{
+        display: 'flex',
+        gap: '2px',
+        overflowX: 'auto',
+        borderBottom: '1px solid rgba(255,255,255,0.1)',
+        marginBottom: '16px',
+        paddingBottom: '2px'
+      }} className="scrollbar-hide">
+        {[
+          { id: 'all', label: 'ALL TRANSACTIONS' },
+          { id: 'hsd', label: 'DIESEL (HSD)' },
+          { id: 'ms', label: 'PETROL (MS)' },
+          { id: 'modes', label: 'PAYMENT MODES' }
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              borderBottom: activeTab === tab.id ? '2px solid #FFD100' : '2px solid transparent',
+              color: activeTab === tab.id ? '#FFD100' : '#64748b',
+              fontWeight: 800,
+              fontSize: '10px',
+              padding: '8px 12px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.2s'
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
-      
-      {totalCount > 0 ? (
-        <div id="hist-list" style={{
-          background: '#0d1326',
-          borderRadius: '16px',
-          border: '1px solid rgba(255, 255, 255, 0.05)',
-          overflow: 'hidden',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
-        }}>
-          <div className="flex flex-col gap-0">
-            {transactions.map((tx) => (
-              <TransactionRow
-                key={tx.id}
-                tx={tx}
-                onDelete={() => handleDeleteClick(tx)}
-                onEdit={(id) => onEditInitiate(id)}
-              />
-            ))}
+
+      {activeTab === 'modes' && (
+        <div style={{marginBottom: '20px'}}>
+          <div style={{fontSize: '10px', fontWeight: 900, color: '#FFD100', marginBottom: '10px'}}>👛 PAYMENT MODE SUMMARY</div>
+          <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px'}}>
+            {MODES.map((mode) => {
+              const modeTxns = activeTxns.filter((t) => t.paymentMode === mode.id);
+              const modeAmt = modeTxns.reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+              
+              return (
+                <div key={mode.id} style={{
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.05)',
+                  borderRadius: '12px',
+                  padding: '12px 8px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}>
+                  <div style={{background: 'rgba(255,255,255,0.08)', padding: '6px', borderRadius: '8px', fontSize: '18px'}}>{mode.icon}</div>
+                  <div style={{fontSize: '9px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase'}}>{mode.label}</div>
+                  <div style={{fontSize: '12px', fontWeight: 900, color: '#fff'}}>{fmt(modeAmt)}</div>
+                  <div style={{fontSize: '9px', color: '#64748b'}}>({modeTxns.length})</div>
+                </div>
+              );
+            })}
           </div>
         </div>
-      ) : (
+      )}
+
+      {activeTab !== 'modes' && (
+        <div className="sec" id="hist-title" style={{
+          fontSize: '11px',
+          fontWeight: 800,
+          color: '#FFD100',
+          letterSpacing: '1.5px',
+          marginBottom: '10px',
+          marginTop: '6px'
+        }}>
+          {activeTab === 'all' ? 'RECENT TRANSACTIONS' : activeTab === 'hsd' ? 'DIESEL TRANSACTIONS' : 'PETROL TRANSACTIONS'}
+        </div>
+      )}
+      
+      {activeTab !== 'modes' && (
+        totalCount > 0 ? (
+          <div id="hist-list" style={{
+            background: '#0d1326',
+            borderRadius: '16px',
+            border: '1px solid rgba(255, 255, 255, 0.05)',
+            overflow: 'hidden',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
+          }}>
+            <div className="flex flex-col gap-0">
+              {transactions
+                .filter(tx => activeTab === 'all' || tx.fuelId === activeTab)
+                .map((tx) => (
+                <TransactionRow
+                  key={tx.id}
+                  tx={tx}
+                  onDelete={() => handleDeleteClick(tx)}
+                  onEdit={(id) => onEditInitiate(id)}
+                />
+              ))}
+            </div>
+          </div>
+        ) : (
         <div className="empty" id="hist-empty" style={{
           background: '#0d1326',
           borderRadius: '16px',
@@ -136,8 +210,10 @@ export default function History({ transactions = [], onDeleteInitiate, onEditIni
           textAlign: 'center'
         }}>
           <div className="empty-ic" style={{fontSize: '48px', marginBottom: '12px'}}>📋</div>
-          <div style={{color: '#64748b', fontWeight: 700, fontSize: '14px'}}>No transactions logged in this shift.</div>
+          <div style={{color: '#64748b', fontWeight: 700, fontSize: '14px'}}>No transactions yet!</div>
+          <div style={{color: '#475569', fontSize: '10px', marginTop: '6px'}}>You haven't recorded any transactions.</div>
         </div>
+        )
       )}
 
       {/* SOFT DELETE REASON MODAL */}

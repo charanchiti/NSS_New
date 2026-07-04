@@ -204,8 +204,7 @@ export default function App() {
           setPendingResumeShift(localShift);
           setPendingResumeTxns(localTxns || []);
           setPendingAuditState(auditState);
-          setShowResumeModal(true);
-          // Wait for user to decide before finalizing bootstrap UI
+          // Wait for user to verify OTP before showing resume modal
         } else {
           // If no local shift, fetch from server
           let currentShift = null;
@@ -235,9 +234,10 @@ export default function App() {
           }
 
           if (currentShift) {
-            setShiftMeta(currentShift);
-            setTransactions(currentTxns);
-            setToastMessage("✅ Session synchronized successfully.");
+            setPendingResumeShift(currentShift);
+            setPendingResumeTxns(currentTxns);
+            setPendingAuditState(null);
+            // Wait for user to verify OTP before showing resume modal
           }
         }
         
@@ -296,14 +296,8 @@ export default function App() {
           setTimeout(() => setToastMessage(null), 3000);
           setIsServerOffline(false);
           
-          // Refresh lists from database
-          if (shiftMeta) {
-            const activeShift = await api.fetchActiveShift();
-            if (activeShift) {
-              setTransactions(activeShift.transactions || []);
-              await syncLocalTransactions(activeShift.transactions || []);
-            }
-          }
+          // Removed refreshing lists from database completely to rely strictly on IndexedDB
+          // This prevents accidental wiping of data if backend goes out of sync
         }
       } catch (e) {
         console.log("Background sync paused (Offline)");
@@ -515,6 +509,11 @@ export default function App() {
       setOtpCode('');
       setToastMessage("✅ Owner OTP verified successfully.");
       setTimeout(() => setToastMessage(null), 3000);
+
+      // Show resume modal if there's a pending shift after verifying OTP
+      if (pendingResumeShift) {
+        setShowResumeModal(true);
+      }
     } catch (err) {
       setOtpError(`❌ Incorrect or expired OTP. Please try again. ${err.message}`);
     } finally {
@@ -1270,14 +1269,18 @@ export default function App() {
           onSuccess={() => {
             setShowPinModal(false);
             if (pinAction?.type === 'ownerLogin') {
-              // Direct login logic - skip setup readings, auto-fill dummy shift for owner
-              setShiftMeta({
-                id: 'owner_session',
-                dsmName: 'Owner Direct',
-                shiftType: 'day',
-                startTime: new Date().toISOString(),
-                openingN1: 0, openingN2: 0, openingN3: 0, openingN4: 0
-              });
+              setIsOwnerVerified(true);
+              if (pendingResumeShift) {
+                setShowResumeModal(true);
+              } else {
+                setShiftMeta({
+                  id: 'owner_session',
+                  dsmName: 'Owner Direct',
+                  shiftType: 'day',
+                  startTime: new Date().toISOString(),
+                  openingN1: 0, openingN2: 0, openingN3: 0, openingN4: 0
+                });
+              }
             }
             setPinAction(null);
           }}

@@ -31,16 +31,86 @@ export default function Dashboard({ transactions = [], shiftMeta = null, onStart
   return (
     <div id="s-dash" className="flex flex-col gap-4 pb-24 max-w-[480px] mx-auto w-full font-sans select-none animate-fadeUp">
       
-      {/* Grand Card */}
-      <div className="bg-gradient-to-br from-[#001440] to-[#002868] border border-[#FFD100]/30 rounded-2xl p-5 shadow-2xl text-center relative overflow-hidden">
-        <span className="absolute -right-6 -top-6 text-8xl opacity-10 select-none">⛽</span>
-        <span className="block text-[10px] font-black text-[#93c5fd] uppercase tracking-wider">Total Collection</span>
-        <div className="text-4xl font-black text-[#FFD100] tracking-tight my-2">
-          ₹{grandAmt.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+      {/* TODAY'S SUMMARY */}
+      <div className="bg-[#0b1329] border border-slate-800 rounded-2xl p-4 shadow-xl">
+        <div className="flex justify-between items-center mb-3">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">TODAY'S SUMMARY</span>
+          <span className="text-[9px] font-bold text-slate-500 cursor-pointer">View All {'>'}</span>
         </div>
-        <div className="text-[11px] font-extrabold text-[#93c5fd]">
-          {grandLiters.toFixed(2)} L Sold · {activeTxns.length} Transactions
+        
+        <div className="grid grid-cols-3 gap-3">
+          <div className="flex flex-col">
+            <span className="text-[9px] font-bold text-slate-400 uppercase">TOTAL SALES (₹)</span>
+            <span className="text-base font-black text-white mt-1">{grandAmt.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+            <span className="text-[9px] font-bold text-green-500 mt-0.5">↑ 12.5%</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[9px] font-bold text-slate-400 uppercase">LITRES SOLD</span>
+            <span className="text-base font-black text-white mt-1">{grandLiters.toFixed(2)} L</span>
+            <span className="text-[9px] font-bold text-green-500 mt-0.5">↑ 8.3%</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[9px] font-bold text-slate-400 uppercase">TRANSACTIONS</span>
+            <span className="text-base font-black text-white mt-1">{activeTxns.length}</span>
+            <span className="text-[9px] font-bold text-green-500 mt-0.5">↑ 5.2%</span>
+          </div>
         </div>
+      </div>
+
+      {/* FUEL STOCK (APPROX) */}
+      <div className="bg-[#0b1329] border border-slate-800 rounded-2xl p-4 shadow-xl">
+        <div className="flex justify-between items-center mb-4">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">FUEL STOCK (APPROX)</span>
+          <span className="text-[9px] font-bold text-slate-500">Updated just now</span>
+        </div>
+        
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <div className="flex justify-between items-center text-xs">
+              <div className="flex items-center gap-1.5 font-bold text-slate-300">
+                <span>⛽</span> HSD (Diesel)
+              </div>
+              <div className="text-[10px] text-slate-400">18,450 L / 45,000 L</div>
+            </div>
+            <div className="w-full bg-slate-800 rounded-full h-1.5">
+              <div className="bg-[#FFD100] h-1.5 rounded-full" style={{ width: '41%' }}></div>
+            </div>
+            <div className="text-right text-[10px] font-bold text-[#FFD100]">41%</div>
+          </div>
+          
+          <div className="flex flex-col gap-1.5">
+            <div className="flex justify-between items-center text-xs">
+              <div className="flex items-center gap-1.5 font-bold text-slate-300">
+                <span className="text-green-500">⛽</span> MS (Petrol)
+              </div>
+              <div className="text-[10px] text-slate-400">8,240 L / 20,000 L</div>
+            </div>
+            <div className="w-full bg-slate-800 rounded-full h-1.5">
+              <div className="bg-green-500 h-1.5 rounded-full" style={{ width: '41%' }}></div>
+            </div>
+            <div className="text-right text-[10px] font-bold text-green-500">41%</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-4 gap-2">
+        <button className="bg-[#0b1329] border border-slate-800 rounded-xl p-3 flex flex-col items-center justify-center gap-1.5 shadow-md active:scale-95">
+          <span className="text-xl">⚡</span>
+          <span className="text-[9px] font-bold text-slate-300">Quick Entry</span>
+        </button>
+        <button className="bg-[#0b1329] border border-slate-800 rounded-xl p-3 flex flex-col items-center justify-center gap-1.5 shadow-md active:scale-95">
+          <span className="text-xl">📘</span>
+          <span className="text-[9px] font-bold text-slate-300">Credit Ledger</span>
+        </button>
+        <button className="bg-[#0b1329] border border-slate-800 rounded-xl p-3 flex flex-col items-center justify-center gap-1.5 shadow-md active:scale-95">
+          <span className="text-xl">📉</span>
+          <span className="text-[9px] font-bold text-slate-300">Expenses</span>
+        </button>
+        <button className="bg-[#0b1329] border border-slate-800 rounded-xl p-3 flex flex-col items-center justify-center gap-1.5 shadow-md active:scale-95">
+          <span className="text-xl">🎁</span>
+          <span className="text-[9px] font-bold text-slate-300">Rewards</span>
+        </button>
       </div>
 
       {/* Settle Shift & Audit Button */}
@@ -138,8 +208,9 @@ export default function Dashboard({ transactions = [], shiftMeta = null, onStart
 
       {/* RECENT ENTRIES */}
       <div className="bg-[#0b1329] border border-slate-800 rounded-2xl p-4 shadow-xl">
-        <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">
-          📝 Recent Entries (Last 5)
+        <div className="flex justify-between items-center mb-3">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">RECENT TRANSACTIONS</span>
+          <span className="text-[9px] font-bold text-slate-500 cursor-pointer">View All {'>'}</span>
         </div>
         
         {recentEntries.length > 0 ? (
@@ -155,6 +226,18 @@ export default function Dashboard({ transactions = [], shiftMeta = null, onStart
             <div className="text-[10px] mt-0.5">Use bottom nav ➕ to log entries.</div>
           </div>
         )}
+      </div>
+
+      {/* LOW STOCK ALERT */}
+      <div className="bg-amber-950/20 border-l-4 border-amber-500 rounded-r-xl p-3 flex justify-between items-center shadow-md">
+        <div className="flex items-center gap-3">
+          <span className="text-xl text-amber-500">⚠️</span>
+          <div className="flex flex-col">
+            <span className="text-[10px] font-black text-amber-500 uppercase tracking-wider">LOW STOCK ALERT</span>
+            <span className="text-[9px] font-bold text-slate-400">Petrol stock is below 10,000 L</span>
+          </div>
+        </div>
+        <span className="text-amber-500">{'>'}</span>
       </div>
     </div>
   );
