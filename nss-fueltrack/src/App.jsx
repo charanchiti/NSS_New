@@ -510,10 +510,7 @@ export default function App() {
       setToastMessage("✅ Owner OTP verified successfully.");
       setTimeout(() => setToastMessage(null), 3000);
 
-      // Show resume modal if there's a pending shift after verifying OTP
-      if (pendingResumeShift) {
-        setShowResumeModal(true);
-      }
+      // Removed setShowResumeModal(true) since it's now handled by inline conditional rendering
     } catch (err) {
       setOtpError(`❌ Incorrect or expired OTP. Please try again. ${err.message}`);
     } finally {
@@ -1173,6 +1170,30 @@ export default function App() {
                   )}
                 </div>
               </div>
+            ) : pendingResumeShift ? (
+              <div id="setup-step1-5" className="flex flex-col gap-4 text-center mt-2">
+                <div className="text-[36px] mb-2 select-none animate-bounce">⚠️</div>
+                <h3 className="text-[#FFD100] font-black text-xl mb-1 tracking-wide uppercase">
+                  Previous Shift Detected
+                </h3>
+                <p className="text-slate-400 text-xs mb-6 leading-relaxed">
+                  An unfinished shift from {pendingResumeShift?.startTime ? new Date(pendingResumeShift.startTime).toLocaleString() : 'earlier'} was found. Would you like to resume it?
+                </p>
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={handleResumeShift}
+                    className="w-full py-4 rounded-xl bg-gradient-to-r from-[#FFD100] to-amber-500 border-none text-[#001440] font-black text-sm uppercase tracking-wider cursor-pointer shadow-lg active:scale-95 transition-all"
+                  >
+                    ▶️ Resume This Shift
+                  </button>
+                  <button
+                    onClick={handleStartNewShiftAfterResumePrompt}
+                    className="w-full py-4 rounded-xl bg-[#0f172a] border-2 border-red-500/20 text-red-400 font-bold text-xs uppercase tracking-wider cursor-pointer active:scale-95 transition-all hover:bg-red-500/10"
+                  >
+                    Discard & Start New Shift
+                  </button>
+                </div>
+              </div>
             ) : (
               <div id="setup-step2" className="flex flex-col gap-4">
                 <div className="bg-green-950/20 border border-green-500/30 text-green-400 p-3 rounded-xl text-xs font-black flex items-center gap-1.5">
@@ -1270,9 +1291,9 @@ export default function App() {
             setShowPinModal(false);
             if (pinAction?.type === 'ownerLogin') {
               setIsOwnerVerified(true);
-              if (pendingResumeShift) {
-                setShowResumeModal(true);
-              } else {
+              // Direct login now naturally flows to Step 1.5 if pendingResumeShift is true,
+              // or directly fills out the dummy shift if there's no pending shift.
+              if (!pendingResumeShift) {
                 setShiftMeta({
                   id: 'owner_session',
                   dsmName: 'Owner Direct',
@@ -1783,37 +1804,6 @@ export default function App() {
         </div>
       )}
       
-      {/* ── MODAL 7: RESUME SHIFT PROMPT ── */}
-      {showResumeModal && (
-        <div className="fixed inset-0 z-[300] bg-black/85 flex items-center justify-center p-6 select-none backdrop-blur-md">
-          <div className="bg-[#0b1329] border-2 border-[#FFD100]/30 rounded-3xl p-6 w-full max-w-[360px] shadow-2xl text-center">
-            <div className="text-[28px] mb-2 select-none">⚠️</div>
-            <h3 className="text-[#FFD100] font-black text-lg mb-1 tracking-wide uppercase">
-              Previous Shift Detected
-            </h3>
-            <p className="text-slate-400 text-xs mb-6 leading-relaxed">
-              An unfinished shift from {pendingResumeShift?.startTime ? new Date(pendingResumeShift.startTime).toLocaleString() : 'earlier'} was found. Would you like to resume it?
-            </p>
-            <div className="flex flex-col gap-3">
-              <button
-                onClick={handleResumeShift}
-                className="w-full py-4 rounded-xl bg-gradient-to-r from-[#FFD100] to-amber-500 border-none text-[#001440] font-black text-xs uppercase tracking-wider cursor-pointer shadow-lg active:scale-95 transition-all"
-              >
-                ▶️ Resume Shift
-              </button>
-              <button
-                onClick={() => {
-                  if (window.confirm("Are you sure? This will archive the previous unfinished shift locally.")) {
-                    handleStartNewShiftAfterResumePrompt();
-                  }
-                }}
-                className="w-full py-4 rounded-xl bg-slate-800 border-none text-slate-350 font-bold text-xs uppercase tracking-wider cursor-pointer active:scale-95 transition-all"
-              >
-                🔄 Start New Shift
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
