@@ -1,93 +1,90 @@
-from sqlalchemy import Column, String, Float, Boolean, DateTime, ForeignKey, Integer
+from sqlalchemy import Column, String, Float, Boolean, Date, DateTime, Integer, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from database import Base
+import datetime
 
-class Shift(Base):
-    __tablename__ = "shifts"
 
-    id = Column(String, primary_key=True, index=True)
-    dsm_name = Column(String, nullable=False)
-    shift_type = Column(String, nullable=False)
-    start_time = Column(DateTime, nullable=False)
-    end_time = Column(DateTime, nullable=True)
-    active = Column(Boolean, default=True, nullable=False)
+class FuelPrice(Base):
+    """Current fuel prices per type. Seeded on startup."""
+    __tablename__ = "fuel_prices"
 
-    # V2: Nozzle opening readings (entered at shift start)
-    opening_n1 = Column(Float, nullable=True, default=0.0)
-    opening_n2 = Column(Float, nullable=True, default=0.0)
-    opening_n3 = Column(Float, nullable=True, default=0.0)
-    opening_n4 = Column(Float, nullable=True, default=0.0)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    fuel_type = Column(String, unique=True, nullable=False)   # "diesel" | "ms"
+    price = Column(Float, nullable=False)
+    active = Column(Boolean, default=True)
 
-    # V2: Nozzle closing readings (entered at settlement/end)
-    closing_n1 = Column(Float, nullable=True)
-    closing_n2 = Column(Float, nullable=True)
-    closing_n3 = Column(Float, nullable=True)
-    closing_n4 = Column(Float, nullable=True)
 
-    # Relationship to transactions
-    transactions = relationship("Transaction", back_populates="shift", cascade="all, delete-orphan")
-    # V2: Relationship to deductions
-    deductions = relationship("Deduction", back_populates="shift", cascade="all, delete-orphan")
+class LubricateProduct(Base):
+    """Master list of lubricate products available at the station."""
+    __tablename__ = "lubricate_products"
 
-class Transaction(Base):
-    __tablename__ = "transactions"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, unique=True, nullable=False)
+    sort_order = Column(Integer, default=0)
+    active = Column(Boolean, default=True)
+
+
+class DailyReport(Base):
+    """One report per day per pump."""
+    __tablename__ = "daily_reports"
 
     id = Column(String, primary_key=True, index=True)
-    shift_id = Column(String, ForeignKey("shifts.id"), nullable=False)
-    vehicle = Column(String, nullable=False)
-    fuel_id = Column(String, nullable=False)
-    fuel_label = Column(String, nullable=False)
-    liters = Column(Float, nullable=False)
-    amount = Column(Float, nullable=False)
-    note = Column(String, nullable=True)
-    payment_mode = Column(String, nullable=False)
-    mode_label = Column(String, nullable=False)
-    rate_used = Column(Float, nullable=False)
-    timestamp = Column(DateTime, nullable=False)
-    
-    # V2: Nozzle assignment (1-4)
-    nozzle = Column(Integer, nullable=True, default=1)
-    
-    # V2: Credit tracking fields
-    credit_name = Column(String, nullable=True)
-    credit_phone = Column(String, nullable=True)
-    credit_vehicle = Column(String, nullable=True)
+    date = Column(Date, nullable=False)
+    employee_name = Column(String, nullable=False)
+    start_time = Column(String, nullable=True)    # stored as "HH:MM" string
+    end_time = Column(String, nullable=True)
+    pump_number = Column(Integer, nullable=False, default=1)
+    status = Column(String, nullable=False, default="draft")  # "draft" | "completed"
+    remarks = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
-    # Security/Loophole Columns
-    is_override = Column(Boolean, default=False, nullable=False)
-    override_reason = Column(String, nullable=True)
-    deleted = Column(Boolean, default=False, nullable=False)
-    deletion_reason = Column(String, nullable=True)
-    deleted_at = Column(DateTime, nullable=True)
+    # Relationships
+    nozzle_readings = relationship("NozzleReading", back_populates="report", cascade="all, delete-orphan", order_by="NozzleReading.nozzle_number")
+    collections = relationship("Collection", back_populates="report", cascade="all, delete-orphan")
+    lubricates = relationship("Lubricate", back_populates="report", cascade="all, delete-orphan")
 
-    # V2: Edit audit trail
-    edited = Column(Boolean, default=False, nullable=False)
-    edited_at = Column(DateTime, nullable=True)
-    edited_by = Column(String, nullable=True)
-    edit_otp_ref = Column(String, nullable=True)
-    original_amount = Column(Float, nullable=True)
-    original_liters = Column(Float, nullable=True)
-    original_mode = Column(String, nullable=True)
 
-    # Relationship back to shift
-    shift = relationship("Shift", back_populates="transactions")
-
-class Deduction(Base):
-    """V2: Loyalty rewards and shift expenses that reduce net cash handover."""
-    __tablename__ = "deductions"
+class NozzleReading(Base):
+    """Opening/closing meter readings for each nozzle in a daily report."""
+    __tablename__ = "nozzle_readings"
 
     id = Column(String, primary_key=True, index=True)
-    shift_id = Column(String, ForeignKey("shifts.id"), nullable=False)
-    type = Column(String, nullable=False)   # "reward" or "expense"
-    amount = Column(Float, nullable=False)
-    note = Column(String, nullable=True)
-    time = Column(DateTime, nullable=False)
+    report_id = Column(String, ForeignKey("daily_reports.id"), nullable=False)
+    nozzle_number = Column(Integer, nullable=False)     # 1, 2, 3, 4
+    fuel_type = Column(String, nullable=False)          # "diesel" | "ms"
+    opening_reading = Column(Float, nullable=False, default=0.0)
+    closing_reading = Column(Float, nullable=False, default=0.0)
+    sales_litres = Column(Float, nullable=False, default=0.0)  # computed: closing - opening
+    price = Column(Float, nullable=False, default=0.0)
+    amount = Column(Float, nullable=False, default=0.0)        # computed: sales_litres × price
 
-    # Relationship back to shift
-    shift = relationship("Shift", back_populates="deductions")
+    report = relationship("DailyReport", back_populates="nozzle_readings")
 
-class Config(Base):
-    __tablename__ = "config"
 
-    key = Column(String, primary_key=True, index=True)
-    value = Column(String, nullable=False)
+class Collection(Base):
+    """Payment/collection categories for a daily report."""
+    __tablename__ = "collections"
+
+    id = Column(String, primary_key=True, index=True)
+    report_id = Column(String, ForeignKey("daily_reports.id"), nullable=False)
+    category = Column(String, nullable=False)        # "cash", "phonepay", etc.
+    day_amount = Column(Float, nullable=False, default=0.0)
+    evening_amount = Column(Float, nullable=False, default=0.0)
+    total_amount = Column(Float, nullable=False, default=0.0)   # computed: day + evening
+
+    report = relationship("DailyReport", back_populates="collections")
+
+
+class Lubricate(Base):
+    """Lubricate inventory entry for a daily report."""
+    __tablename__ = "lubricates"
+
+    id = Column(String, primary_key=True, index=True)
+    report_id = Column(String, ForeignKey("daily_reports.id"), nullable=False)
+    product_name = Column(String, nullable=False)
+    opening_stock = Column(Float, nullable=False, default=0.0)
+    sales = Column(Float, nullable=False, default=0.0)
+    balance_stock = Column(Float, nullable=False, default=0.0)   # computed: opening - sales
+
+    report = relationship("DailyReport", back_populates="lubricates")

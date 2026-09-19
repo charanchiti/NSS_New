@@ -1,69 +1,62 @@
-// V2 Payment Modes (matching prototype)
-export const MODES = [
-  { id: 'cash',     label: 'Cash',         icon: '💵', color: '#22c55e' },
-  { id: 'upi',      label: 'UPI',          icon: '📱', color: '#3b82f6' },
-  { id: 'penlabs',  label: 'Penlabs',      icon: '💳', color: '#8b5cf6' },
-  { id: 'phonepay', label: 'PhonePe EDC',  icon: '🏧', color: '#f97316' },
-  { id: 'otp',      label: 'OTP/Unbarath', icon: '🪪', color: '#ec4899' },
-  { id: 'credit',   label: 'Credit',       icon: '📋', color: '#ef4444' },
-  { id: 'testing',  label: 'Testing',      icon: '🧪', color: '#64748b' },
+// ── Collection Categories ────────────────────────────────────────────
+
+export const COLLECTION_CATEGORIES = [
+  { id: 'cash',             label: 'Cash' },
+  { id: 'phonepay',         label: 'Phone Pay' },
+  { id: 'pinelabs',         label: 'Pine Labs' },
+  { id: 'cms_otp',          label: 'CMS OTP' },
+  { id: 'pcr_otp',          label: 'P.Cr OTP' },
+  { id: 'dcr_otp',          label: 'D.Cr OTP' },
+  { id: 'credit',           label: 'Credit' },
+  { id: 'phonepay_edc',     label: 'Phone Pay EDC' },
+  { id: 'expenses',         label: 'Expenses' },
+  { id: 'non_pump_expenses',label: 'Non Pump Expenses' },
+  { id: 'discount',         label: 'Discount' },
+  { id: 'lubricates',       label: 'Lubricates' },
 ];
 
-export const FUELS = [
-  { id: 'ms',  label: 'MS (Petrol)' },
-  { id: 'hsd', label: 'HSD (Diesel)' },
-];
+// Income vs deduction classification (matches backend)
+export const INCOME_CATEGORIES   = new Set(['cash','phonepay','pinelabs','cms_otp','pcr_otp','dcr_otp','credit','phonepay_edc']);
+export const DEDUCTION_CATEGORIES = new Set(['expenses','non_pump_expenses','discount','lubricates']);
 
-export const VEHICLES = ['Bike', 'Car', 'Auto', 'Lorry', 'Bus', 'Other'];
+// ── Nozzle Config ────────────────────────────────────────────────────
 
-// V2: Nozzle definitions matching prototype (N1/N2 = HSD, N3/N4 = MS)
 export const NOZZLES = [
-  { id: 1, label: 'Diesel 1', fuel: 'hsd' },
-  { id: 2, label: 'Diesel 2', fuel: 'hsd' },
-  { id: 3, label: 'Petrol 1', fuel: 'ms' },
-  { id: 4, label: 'Petrol 2', fuel: 'ms' },
+  { nozzle_number: 1, label: 'Nozzle 1', fuel_type: 'diesel', fuel_label: 'Diesel' },
+  { nozzle_number: 2, label: 'Nozzle 2', fuel_type: 'diesel', fuel_label: 'Diesel' },
+  { nozzle_number: 3, label: 'Nozzle 3', fuel_type: 'ms',     fuel_label: 'Motor Spirit' },
+  { nozzle_number: 4, label: 'Nozzle 4', fuel_type: 'ms',     fuel_label: 'Motor Spirit' },
 ];
 
-// V2: Quick amount presets for Turbo Mode
-export const QUICK_AMOUNTS = [100, 200, 300, 500, 1000, 2000];
+// ── Formatters ───────────────────────────────────────────────────────
 
-// Format as Indian Rupee with commas
 export function fmt(n) {
-  return '₹' + Number(n).toLocaleString('en-IN', {
+  return '₹' + Number(n || 0).toLocaleString('en-IN', {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+    maximumFractionDigits: 2,
   });
 }
 
-// Format time as "02:45 PM"
-export function fmtTime(d) {
+export function fmtNum(n, decimals = 2) {
+  return Number(n || 0).toFixed(decimals);
+}
+
+export function today() {
+  return new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+}
+
+export function fmtDate(d) {
   if (!d) return '—';
-  return new Date(d).toLocaleTimeString('en-IN', {
-    hour: '2-digit', minute: '2-digit', hour12: true
-  });
+  const dt = typeof d === 'string' ? new Date(d + 'T00:00:00') : new Date(d);
+  return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-// Format duration from ms
-export function fmtDuration(startTime) {
-  if (!startTime) return '—';
-  const ms = new Date() - new Date(startTime);
-  const h = Math.floor(ms / 3600000);
-  const m = Math.floor((ms % 3600000) / 60000);
-  return h + 'h ' + m + 'm';
+export function fmtDateLong(d) {
+  if (!d) return '—';
+  const dt = typeof d === 'string' ? new Date(d + 'T00:00:00') : new Date(d);
+  return dt.toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-// V2: Generate 6-digit OTP
-export function generateOTP() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
-// V2: Get nozzle info by id
-export function getNozzle(nozzleId) {
-  return NOZZLES.find(n => n.id === nozzleId) || NOZZLES[0];
-}
-
-// V2: Get fuel type for a nozzle
-export function getNozzleFuel(nozzleId) {
-  const nozzle = getNozzle(nozzleId);
-  return nozzle.fuel;
+export function nowTime() {
+  return new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
 }

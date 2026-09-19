@@ -1,316 +1,145 @@
-import React, { useState } from 'react';
-import { MODES, fmt } from '../constants';
-import TransactionRow from '../components/TransactionRow';
+import React, { useState, useEffect } from 'react';
+import { api } from '../api';
+import { fmt, fmtDate } from '../constants';
 
-export default function History({ transactions = [], onDeleteInitiate, onEditInitiate }) {
-  const activeTxns = transactions.filter((t) => !t.deleted);
-  const totalCount = transactions.length;
-  
-  // Grand totals (Active only)
-  const grandAmt = activeTxns.reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+export default function History({ navigateTo }) {
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo,   setDateTo]   = useState('');
 
-  // Tabs state
-  const [activeTab, setActiveTab] = useState('all');
+  async function loadReports() {
+    setLoading(true);
+    try {
+      const data = await api.listReports(dateFrom || null, dateTo || null);
+      setReports(data || []);
+    } catch (err) {
+      console.error('Failed to load history:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
 
-  // Soft Delete Modal State
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [txToDelete, setTxToDelete] = useState(null);
-  const [deleteReason, setDeleteReason] = useState('');
+  useEffect(() => { loadReports(); }, []);
 
-  const handleDeleteClick = (tx) => {
-    setTxToDelete(tx);
-    setDeleteReason('');
-    setShowDeleteModal(true);
-  };
+  function handleFilter(e) {
+    e.preventDefault();
+    loadReports();
+  }
 
-  const confirmDelete = () => {
-    if (deleteReason.trim().length < 5) return;
-    onDeleteInitiate(txToDelete.id, deleteReason);
-    setShowDeleteModal(false);
-    setTxToDelete(null);
+  const statusConfig = {
+    draft:     { label: 'Draft',     color: 'text-amber-400 bg-amber-900/30' },
+    completed: { label: 'Completed', color: 'text-green-400 bg-green-900/30' },
   };
 
   return (
-    <div id="s-hist" className="screen active" style={{padding: '0 14px 80px'}}>
-      
-      {/* HISTORY SETTLEMENT SUMMARY */}
-      <div id="hist-summary-card" style={{
-        background: 'linear-gradient(135deg, #001440 0%, #002868 50%, #0a132c 100%)',
-        borderRadius: '20px',
-        padding: '20px',
-        marginBottom: '20px',
-        border: '1px solid rgba(255, 209, 0, 0.35)',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-        position: 'relative',
-        overflow: 'hidden'
-      }}>
-        <div style={{
-          position: 'absolute',
-          right: '-10px',
-          top: '-10px',
-          fontSize: '70px',
-          opacity: 0.06,
-          userSelect: 'none'
-        }}>
-          📊
+    <div id="screen-history" className="flex flex-col gap-4 pb-6">
+
+      <div>
+        <h1 className="text-lg font-black text-white">History</h1>
+        <p className="text-[10px] text-slate-500">All saved daily reports</p>
+      </div>
+
+      {/* Date filter */}
+      <form onSubmit={handleFilter} className="bg-[#0b1329] border border-slate-800 rounded-2xl p-4 flex flex-col gap-3">
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Filter by Date</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[9px] text-slate-500 uppercase font-bold">From</label>
+            <input
+              id="history-date-from"
+              type="date"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              className="px-3 py-2.5 rounded-xl text-sm text-white bg-[#050b18] border border-slate-700 focus:outline-none focus:ring-2 focus:ring-[#FFD100]/50"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[9px] text-slate-500 uppercase font-bold">To</label>
+            <input
+              id="history-date-to"
+              type="date"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              className="px-3 py-2.5 rounded-xl text-sm text-white bg-[#050b18] border border-slate-700 focus:outline-none focus:ring-2 focus:ring-[#FFD100]/50"
+            />
+          </div>
         </div>
-        <div style={{
-          fontSize: '11px',
-          fontWeight: 900,
-          color: '#FFD100',
-          letterSpacing: '2px',
-          textTransform: 'uppercase',
-          marginBottom: '14px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px'
-        }}>
-          <span>📊</span> SHIFT COLLECTION SUMMARY
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            className="flex-1 py-2.5 bg-[#FFD100] text-[#001040] font-black text-sm rounded-xl active:scale-[0.98] transition-all"
+          >
+            Apply Filter
+          </button>
+          {(dateFrom || dateTo) && (
+            <button
+              type="button"
+              onClick={() => { setDateFrom(''); setDateTo(''); setTimeout(loadReports, 100); }}
+              className="px-4 py-2.5 bg-slate-800 text-slate-300 font-bold text-sm rounded-xl active:scale-[0.98] transition-all"
+            >
+              Clear
+            </button>
+          )}
         </div>
-        
-        <div id="hist-mode-rows" style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
-          {MODES.map((mode) => {
-            const modeTxns = activeTxns.filter((t) => t.paymentMode === mode.id);
-            if (modeTxns.length === 0) return null;
-            const modeAmt = modeTxns.reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-            
+      </form>
+
+      {/* Reports list */}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="w-8 h-8 border-2 border-[#FFD100] border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : reports.length === 0 ? (
+        <div className="flex flex-col items-center py-16 gap-3 text-center">
+          <span className="text-4xl">📋</span>
+          <p className="text-sm font-bold text-slate-400">No reports found</p>
+          <p className="text-xs text-slate-600">Create a daily entry to get started.</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {reports.map(r => {
+            const sc = statusConfig[r.status] || statusConfig.draft;
             return (
-              <div key={mode.id} style={{
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                padding: '8px 0',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.05)'
-              }}>
-                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                  <span style={{fontSize: '16px'}}>{mode.icon}</span>
-                  <span style={{fontSize: '13px', fontWeight: 650, color: '#94a3b8'}}>{mode.label}</span>
+              <button
+                key={r.id}
+                id={`history-report-${r.id}`}
+                onClick={() => navigateTo('report', { reportId: r.id })}
+                className="w-full bg-[#0b1329] border border-slate-800 rounded-2xl p-4 text-left active:scale-[0.99] transition-all hover:border-slate-600"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <p className="text-base font-black text-white">{fmtDate(r.date)}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{r.employee_name}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1.5">
+                    <span className={`text-[9px] font-bold px-2 py-1 rounded-full ${sc.color}`}>
+                      {sc.label}
+                    </span>
+                    <span className="text-[9px] font-bold text-slate-500">Pump 0{r.pump_number}</span>
+                  </div>
                 </div>
-                <span style={{fontSize: '14px', fontWeight: 800, color: '#f1f5f9', fontFamily: 'monospace'}}>{fmt(modeAmt)}</span>
-              </div>
+
+                <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-800">
+                  <div>
+                    <p className="text-[9px] font-bold text-slate-500 uppercase">Sales (₹)</p>
+                    <p className="text-sm font-black text-[#FFD100] mt-0.5">{fmt(r.total_sales_amount)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-bold text-slate-500 uppercase">Litres</p>
+                    <p className="text-sm font-black text-white mt-0.5">{r.total_sales_litres?.toFixed(2)} L</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-bold text-slate-500 uppercase">Collected</p>
+                    <p className="text-sm font-black text-green-400 mt-0.5">{fmt(r.total_collection)}</p>
+                  </div>
+                </div>
+
+                <p className="text-[9px] text-slate-600 text-right mt-2">Tap to view report →</p>
+              </button>
             );
           })}
         </div>
-        
-        <div style={{borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: '14px', marginTop: '10px'}}>
-          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-            <span style={{fontWeight: 800, color: '#e2e8f0', fontSize: '14px', letterSpacing: '0.5px'}}>ACTUAL SALES (LOGGED)</span>
-            <span id="hist-actual-sales" style={{fontWeight: 950, color: '#FFD100', fontSize: '20px', fontFamily: 'monospace'}}>{fmt(grandAmt)}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div style={{
-        display: 'flex',
-        gap: '2px',
-        overflowX: 'auto',
-        borderBottom: '1px solid rgba(255,255,255,0.1)',
-        marginBottom: '16px',
-        paddingBottom: '2px'
-      }} className="scrollbar-hide">
-        {[
-          { id: 'all', label: 'ALL TRANSACTIONS' },
-          { id: 'hsd', label: 'DIESEL (HSD)' },
-          { id: 'ms', label: 'PETROL (MS)' },
-          { id: 'modes', label: 'PAYMENT MODES' }
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              borderBottom: activeTab === tab.id ? '2px solid #FFD100' : '2px solid transparent',
-              color: activeTab === tab.id ? '#FFD100' : '#64748b',
-              fontWeight: 800,
-              fontSize: '10px',
-              padding: '8px 12px',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              transition: 'all 0.2s'
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === 'modes' && (
-        <div style={{marginBottom: '20px'}}>
-          <div style={{fontSize: '10px', fontWeight: 900, color: '#FFD100', marginBottom: '10px'}}>👛 PAYMENT MODE SUMMARY</div>
-          <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px'}}>
-            {MODES.map((mode) => {
-              const modeTxns = activeTxns.filter((t) => t.paymentMode === mode.id);
-              const modeAmt = modeTxns.reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-              
-              return (
-                <div key={mode.id} style={{
-                  background: 'rgba(255,255,255,0.03)',
-                  border: '1px solid rgba(255,255,255,0.05)',
-                  borderRadius: '12px',
-                  padding: '12px 8px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}>
-                  <div style={{background: 'rgba(255,255,255,0.08)', padding: '6px', borderRadius: '8px', fontSize: '18px'}}>{mode.icon}</div>
-                  <div style={{fontSize: '9px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase'}}>{mode.label}</div>
-                  <div style={{fontSize: '12px', fontWeight: 900, color: '#fff'}}>{fmt(modeAmt)}</div>
-                  <div style={{fontSize: '9px', color: '#64748b'}}>({modeTxns.length})</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
       )}
-
-      {activeTab !== 'modes' && (
-        <div className="sec" id="hist-title" style={{
-          fontSize: '11px',
-          fontWeight: 800,
-          color: '#FFD100',
-          letterSpacing: '1.5px',
-          marginBottom: '10px',
-          marginTop: '6px'
-        }}>
-          {activeTab === 'all' ? 'RECENT TRANSACTIONS' : activeTab === 'hsd' ? 'DIESEL TRANSACTIONS' : 'PETROL TRANSACTIONS'}
-        </div>
-      )}
-      
-      {activeTab !== 'modes' && (
-        totalCount > 0 ? (
-          <div id="hist-list" style={{
-            background: '#0d1326',
-            borderRadius: '16px',
-            border: '1px solid rgba(255, 255, 255, 0.05)',
-            overflow: 'hidden',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
-          }}>
-            <div className="flex flex-col gap-0">
-              {transactions
-                .filter(tx => activeTab === 'all' || tx.fuelId === activeTab)
-                .map((tx) => (
-                <TransactionRow
-                  key={tx.id}
-                  tx={tx}
-                  onDelete={() => handleDeleteClick(tx)}
-                  onEdit={(id) => onEditInitiate(id)}
-                />
-              ))}
-            </div>
-          </div>
-        ) : (
-        <div className="empty" id="hist-empty" style={{
-          background: '#0d1326',
-          borderRadius: '16px',
-          border: '1px solid rgba(255,255,255,0.05)',
-          padding: '40px 20px',
-          textAlign: 'center'
-        }}>
-          <div className="empty-ic" style={{fontSize: '48px', marginBottom: '12px'}}>📋</div>
-          <div style={{color: '#64748b', fontWeight: 700, fontSize: '14px'}}>No transactions yet!</div>
-          <div style={{color: '#475569', fontSize: '10px', marginTop: '6px'}}>You haven't recorded any transactions.</div>
-        </div>
-        )
-      )}
-
-      {/* SOFT DELETE REASON MODAL */}
-      {showDeleteModal && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0,0,0,0.85)',
-          backdropFilter: 'blur(8px)',
-          zIndex: 9999,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '20px'
-        }}>
-          <div style={{
-            background: '#0a1024',
-            border: '2px solid rgba(239, 68, 68, 0.4)',
-            borderRadius: '24px',
-            padding: '24px',
-            width: '100%',
-            maxWidth: '380px',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
-            animation: 'popIn 0.3s ease'
-          }}>
-            <div style={{display: 'flex', alignItems: 'center', gap: '8px', fontSize: '18px', fontWeight: 900, color: '#ef4444', marginBottom: '8px'}}>
-              <span>⚠️</span> Confirm Deletion
-            </div>
-            <div style={{fontSize: '12px', color: '#94a3b8', marginBottom: '18px', lineHeight: 1.5}}>
-              You are deleting a logged transaction. The owner will see this in the audit log. Please provide a reason.
-            </div>
-            <input
-              type="text"
-              placeholder="Why are you deleting this? (min 5 chars)"
-              value={deleteReason}
-              onChange={(e) => setDeleteReason(e.target.value)}
-              style={{
-                width: '100%',
-                background: '#040817',
-                border: '1px solid #334155',
-                borderRadius: '12px',
-                padding: '14px',
-                color: '#fff',
-                fontSize: '14px',
-                marginBottom: '20px',
-                outline: 'none',
-                fontWeight: 700
-              }}
-            />
-            <div style={{display: 'flex', gap: '12px'}}>
-              <button 
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  setTxToDelete(null);
-                }}
-                style={{
-                  flex: 1,
-                  background: '#1e293b',
-                  border: '1px solid #334155',
-                  borderRadius: '12px',
-                  padding: '14px',
-                  color: '#94a3b8',
-                  fontWeight: 800,
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px'
-                }}
-              >
-                Cancel
-              </button>
-              <button 
-                disabled={deleteReason.trim().length < 5}
-                onClick={confirmDelete}
-                style={{
-                  flex: 1,
-                  background: deleteReason.trim().length < 5 ? '#311010' : '#ef4444',
-                  border: 'none',
-                  borderRadius: '12px',
-                  padding: '14px',
-                  color: '#fff',
-                  fontWeight: 800,
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  opacity: deleteReason.trim().length < 5 ? 0.5 : 1,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px'
-                }}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      <div style={{height: '20px'}}></div>
     </div>
   );
 }

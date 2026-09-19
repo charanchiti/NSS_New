@@ -1,243 +1,147 @@
 import React from 'react';
-import { MODES, fmt } from '../constants';
-import TransactionRow from '../components/TransactionRow';
+import { fmt, fmtDateLong, today } from '../constants';
 
-export default function Dashboard({ transactions = [], shiftMeta = null, onStartAudit }) {
-  const activeTxns = transactions.filter((t) => !t.deleted);
+export default function Dashboard({
+  todayReport,
+  fuelPrices,
+  navigateTo,
+  refreshTodayReport,
+}) {
+  const status = todayReport?.status || null;
 
-  // Grand totals
-  const grandAmt = activeTxns.reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-  const grandLiters = activeTxns.reduce((sum, t) => sum + parseFloat(t.liters || 0), 0);
-
-  // Nozzle calculations
-  const nozzleVolumes = { 1: 0, 2: 0, 3: 0, 4: 0 };
-  activeTxns.forEach((t) => {
-    const n = t.nozzle || 1;
-    if (nozzleVolumes[n] !== undefined) {
-      nozzleVolumes[n] += parseFloat(t.liters || 0);
-    }
-  });
-
-  const openingN = {
-    1: shiftMeta?.openingN1 || 0.0,
-    2: shiftMeta?.openingN2 || 0.0,
-    3: shiftMeta?.openingN3 || 0.0,
-    4: shiftMeta?.openingN4 || 0.0,
+  const statusConfig = {
+    null:       { label: 'Not Started', color: 'text-slate-400', bg: 'bg-slate-800/60', dot: 'bg-slate-500' },
+    draft:      { label: 'In Progress', color: 'text-amber-400',  bg: 'bg-amber-900/30', dot: 'bg-amber-400 animate-pulse' },
+    completed:  { label: 'Completed',   color: 'text-green-400',  bg: 'bg-green-900/30', dot: 'bg-green-400' },
   };
+  const sc = statusConfig[status] ?? statusConfig[null];
 
-  // Recent entries (last 5)
-  const recentEntries = activeTxns.slice(0, 5);
+  const summary = todayReport?.summary;
 
   return (
-    <div id="s-dash" className="flex flex-col gap-4 pb-24 max-w-[480px] mx-auto w-full font-sans select-none animate-fadeUp">
-      
-      {/* TODAY'S SUMMARY */}
-      <div className="bg-[#0b1329] border border-slate-800 rounded-2xl p-4 shadow-xl">
-        <div className="flex justify-between items-center mb-3">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">TODAY'S SUMMARY</span>
-          <span className="text-[9px] font-bold text-slate-500 cursor-pointer">View All {'>'}</span>
+    <div id="screen-dashboard" className="flex flex-col gap-4 pb-4 animate-fadeIn">
+
+      {/* Date & Greeting */}
+      <div>
+        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">TODAY</p>
+        <h1 className="text-lg font-black text-white mt-0.5">
+          {fmtDateLong(today())}
+        </h1>
+      </div>
+
+      {/* Pump Status Card */}
+      <div className="bg-gradient-to-br from-[#001f5b] to-[#0a1a40] border border-blue-900/40 rounded-2xl p-5 shadow-xl">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Active Pump</span>
+            <div className="text-2xl font-black text-white mt-1">Pump 01</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">NSS Fuel Station · BPCL</div>
+          </div>
+          <div className="w-16 h-16 rounded-2xl bg-[#FFD100]/10 border border-[#FFD100]/20 flex items-center justify-center">
+            <span className="text-3xl">⛽</span>
+          </div>
         </div>
-        
-        <div className="grid grid-cols-3 gap-3">
-          <div className="flex flex-col">
-            <span className="text-[9px] font-bold text-slate-400 uppercase">TOTAL SALES (₹)</span>
-            <span className="text-base font-black text-white mt-1">{grandAmt.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-            <span className="text-[9px] font-bold text-green-500 mt-0.5">↑ 12.5%</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[9px] font-bold text-slate-400 uppercase">LITRES SOLD</span>
-            <span className="text-base font-black text-white mt-1">{grandLiters.toFixed(2)} L</span>
-            <span className="text-[9px] font-bold text-green-500 mt-0.5">↑ 8.3%</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[9px] font-bold text-slate-400 uppercase">TRANSACTIONS</span>
-            <span className="text-base font-black text-white mt-1">{activeTxns.length}</span>
-            <span className="text-[9px] font-bold text-green-500 mt-0.5">↑ 5.2%</span>
-          </div>
+
+        {/* Status Badge */}
+        <div className={`flex items-center gap-2 px-3 py-2 rounded-xl ${sc.bg}`}>
+          <span className={`w-2 h-2 rounded-full ${sc.dot}`} />
+          <span className={`text-xs font-bold ${sc.color}`}>
+            Today's Report: {sc.label}
+          </span>
         </div>
       </div>
 
-      {/* FUEL STOCK (APPROX) */}
-      <div className="bg-[#0b1329] border border-slate-800 rounded-2xl p-4 shadow-xl">
-        <div className="flex justify-between items-center mb-4">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">FUEL STOCK (APPROX)</span>
-          <span className="text-[9px] font-bold text-slate-500">Updated just now</span>
-        </div>
-        
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <div className="flex justify-between items-center text-xs">
-              <div className="flex items-center gap-1.5 font-bold text-slate-300">
-                <span>⛽</span> HSD (Diesel)
-              </div>
-              <div className="text-[10px] text-slate-400">18,450 L / 45,000 L</div>
+      {/* Today's Summary — only if report exists */}
+      {summary && (
+        <div className="bg-[#0b1329] border border-slate-800 rounded-2xl p-4 shadow-md">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">Today's Summary</p>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <p className="text-[9px] text-slate-500 uppercase font-bold">Total Sales</p>
+              <p className="text-base font-black text-[#FFD100] mt-1">{fmt(summary.total_fuel_amount)}</p>
             </div>
-            <div className="w-full bg-slate-800 rounded-full h-1.5">
-              <div className="bg-[#FFD100] h-1.5 rounded-full" style={{ width: '41%' }}></div>
+            <div>
+              <p className="text-[9px] text-slate-500 uppercase font-bold">Litres Sold</p>
+              <p className="text-base font-black text-white mt-1">{summary.total_fuel_litres.toFixed(2)} L</p>
             </div>
-            <div className="text-right text-[10px] font-bold text-[#FFD100]">41%</div>
+            <div>
+              <p className="text-[9px] text-slate-500 uppercase font-bold">Net Collection</p>
+              <p className="text-base font-black text-green-400 mt-1">{fmt(summary.net_collection)}</p>
+            </div>
           </div>
-          
-          <div className="flex flex-col gap-1.5">
-            <div className="flex justify-between items-center text-xs">
-              <div className="flex items-center gap-1.5 font-bold text-slate-300">
-                <span className="text-green-500">⛽</span> MS (Petrol)
-              </div>
-              <div className="text-[10px] text-slate-400">8,240 L / 20,000 L</div>
+
+          {/* Fuel breakdown */}
+          <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-800">
+            <div className="bg-blue-900/20 rounded-xl p-3">
+              <p className="text-[9px] font-bold text-blue-300 uppercase">Diesel</p>
+              <p className="text-sm font-black text-white mt-1">{summary.diesel_litres.toFixed(2)} L</p>
+              <p className="text-[10px] text-slate-400">{fmt(summary.diesel_amount)}</p>
             </div>
-            <div className="w-full bg-slate-800 rounded-full h-1.5">
-              <div className="bg-green-500 h-1.5 rounded-full" style={{ width: '41%' }}></div>
+            <div className="bg-yellow-900/20 rounded-xl p-3">
+              <p className="text-[9px] font-bold text-yellow-300 uppercase">Motor Spirit</p>
+              <p className="text-sm font-black text-white mt-1">{summary.ms_litres.toFixed(2)} L</p>
+              <p className="text-[10px] text-slate-400">{fmt(summary.ms_amount)}</p>
             </div>
-            <div className="text-right text-[10px] font-bold text-green-500">41%</div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-4 gap-2">
-        <button className="bg-[#0b1329] border border-slate-800 rounded-xl p-3 flex flex-col items-center justify-center gap-1.5 shadow-md active:scale-95">
-          <span className="text-xl">⚡</span>
-          <span className="text-[9px] font-bold text-slate-300">Quick Entry</span>
-        </button>
-        <button className="bg-[#0b1329] border border-slate-800 rounded-xl p-3 flex flex-col items-center justify-center gap-1.5 shadow-md active:scale-95">
-          <span className="text-xl">📘</span>
-          <span className="text-[9px] font-bold text-slate-300">Credit Ledger</span>
-        </button>
-        <button className="bg-[#0b1329] border border-slate-800 rounded-xl p-3 flex flex-col items-center justify-center gap-1.5 shadow-md active:scale-95">
-          <span className="text-xl">📉</span>
-          <span className="text-[9px] font-bold text-slate-300">Expenses</span>
-        </button>
-        <button className="bg-[#0b1329] border border-slate-800 rounded-xl p-3 flex flex-col items-center justify-center gap-1.5 shadow-md active:scale-95">
-          <span className="text-xl">🎁</span>
-          <span className="text-[9px] font-bold text-slate-300">Rewards</span>
-        </button>
-      </div>
-
-      {/* Settle Shift & Audit Button */}
-      <button 
-        type="button" 
-        onClick={onStartAudit}
-        className="w-full py-4 bg-gradient-to-r from-[#FFD100] to-amber-500 hover:from-gold hover:to-amber-600 text-[#001440] font-black text-sm rounded-xl uppercase tracking-wider cursor-pointer shadow-lg active:scale-[0.99] transition-all flex items-center justify-center gap-2 border-none"
-      >
-        📋 Settle Shift & Run Audit
-      </button>
-
-      {/* Live Running Totalizer */}
-      <div className="bg-[#0b1329] border border-slate-800 rounded-2xl p-4 shadow-xl">
-        <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-          <span>📊</span> Current Meter Readings (VTOT)
-        </div>
-        
+      {/* Fuel Prices */}
+      <div className="bg-[#0b1329] border border-slate-800 rounded-2xl p-4 shadow-md">
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">Current Fuel Prices</p>
         <div className="grid grid-cols-2 gap-3">
-          {[1, 2, 3, 4].map((n) => {
-            const openVal = openingN[n];
-            const soldVal = nozzleVolumes[n];
-            const currentTotalizer = openVal + soldVal;
-            const typeLabel = (n === 1 || n === 2) ? 'HSD' : 'MS';
-            const isHSD = typeLabel === 'HSD';
-            
-            return (
-              <div 
-                key={n} 
-                className={`border rounded-xl p-3 shadow-inner relative overflow-hidden flex flex-col justify-between ${
-                  isHSD 
-                    ? 'bg-[#09152e] border-blue-500/20' 
-                    : 'bg-[#1b1509] border-[#FFD100]/20'
-                }`}
-              >
-                <div className="flex justify-between items-center">
-                  <span className={`text-[10px] font-black uppercase ${isHSD ? 'text-blue-400' : 'text-[#FFD100]'}`}>
-                    N{n} {typeLabel}
-                  </span>
-                  <span className="text-[8px] font-extrabold text-slate-500">Nozzle {n}</span>
-                </div>
-                
-                <div className="text-lg font-black text-slate-100 mt-2 font-mono tracking-tight">
-                  {currentTotalizer.toFixed(2)}
-                </div>
-                
-                <div className="flex justify-between items-center mt-1 border-t border-slate-850 pt-1 text-[9px] font-black text-slate-400">
-                  <span>Open: {openVal}</span>
-                  <span className="text-green-500">+{soldVal.toFixed(2)}L</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      
-      {/* Collection by Mode */}
-      <div className="bg-[#0b1329] border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col gap-3">
-        <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-850 pb-2">
-          💰 Collections by Payment Mode
-        </div>
-        
-        <div className="grid grid-cols-2 gap-3">
-          {MODES.map((mode) => {
-            const isCredit = mode.id === 'credit';
-            const modeTxns = activeTxns.filter((t) => t.paymentMode === mode.id);
-            const modeAmt = modeTxns.reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-            const modeLiters = modeTxns.reduce((sum, t) => sum + parseFloat(t.liters || 0), 0);
-
-            const colorText = isCredit ? 'text-red-400' : 'text-[#FFD100]';
-            const borderAccent = isCredit ? 'border-l-4 border-red-500' : 'border-l-4 border-blue-500';
-            const displayLabel = isCredit ? 'Credit' : mode.label;
-
-            return (
-              <div
-                key={mode.id}
-                className={`bg-[#050b18] border border-slate-850 rounded-xl p-3 flex flex-col justify-between ${borderAccent} shadow-sm`}
-              >
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-black text-slate-300">{displayLabel}</span>
-                  <span className="text-lg">{mode.icon}</span>
-                </div>
-                
-                <div className={`text-base font-black mt-2 ${colorText}`}>
-                  {fmt(modeAmt)}
-                </div>
-                
-                <div className="text-[8px] font-bold text-slate-500 mt-1">
-                  {modeTxns.length} txn · {modeLiters.toFixed(1)}L
-                </div>
-              </div>
-            );
-          })}
+          <div className="bg-blue-900/20 border border-blue-800/30 rounded-xl p-3 flex flex-col gap-1">
+            <span className="text-[9px] font-bold text-blue-300 uppercase">Diesel</span>
+            <span className="text-xl font-black text-white">₹{fuelPrices.diesel?.toFixed(2)}</span>
+            <span className="text-[9px] text-slate-500">per litre</span>
+          </div>
+          <div className="bg-yellow-900/20 border border-yellow-800/30 rounded-xl p-3 flex flex-col gap-1">
+            <span className="text-[9px] font-bold text-yellow-300 uppercase">Motor Spirit</span>
+            <span className="text-xl font-black text-white">₹{fuelPrices.ms?.toFixed(2)}</span>
+            <span className="text-[9px] text-slate-500">per litre</span>
+          </div>
         </div>
       </div>
 
-      {/* RECENT ENTRIES */}
-      <div className="bg-[#0b1329] border border-slate-800 rounded-2xl p-4 shadow-xl">
-        <div className="flex justify-between items-center mb-3">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">RECENT TRANSACTIONS</span>
-          <span className="text-[9px] font-bold text-slate-500 cursor-pointer">View All {'>'}</span>
-        </div>
-        
-        {recentEntries.length > 0 ? (
-          <div className="flex flex-col gap-2.5">
-            {recentEntries.map((tx) => (
-              <TransactionRow key={tx.id} tx={tx} />
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-6 text-slate-500">
-            <div className="text-3xl mb-1">⛽</div>
-            <div className="text-xs font-bold">No transactions logged yet.</div>
-            <div className="text-[10px] mt-0.5">Use bottom nav ➕ to log entries.</div>
-          </div>
+      {/* Action Buttons */}
+      <div className="flex flex-col gap-3">
+        {status === null && (
+          <button
+            id="btn-new-entry"
+            onClick={() => navigateTo('entry')}
+            className="w-full py-4 bg-gradient-to-r from-[#FFD100] to-amber-400 text-[#001040] font-black text-sm rounded-2xl shadow-xl active:scale-[0.98] transition-all uppercase tracking-wide"
+          >
+            ➕ New Daily Entry
+          </button>
         )}
-      </div>
 
-      {/* LOW STOCK ALERT */}
-      <div className="bg-amber-950/20 border-l-4 border-amber-500 rounded-r-xl p-3 flex justify-between items-center shadow-md">
-        <div className="flex items-center gap-3">
-          <span className="text-xl text-amber-500">⚠️</span>
-          <div className="flex flex-col">
-            <span className="text-[10px] font-black text-amber-500 uppercase tracking-wider">LOW STOCK ALERT</span>
-            <span className="text-[9px] font-bold text-slate-400">Petrol stock is below 10,000 L</span>
-          </div>
-        </div>
-        <span className="text-amber-500">{'>'}</span>
+        {status === 'draft' && (
+          <button
+            id="btn-continue-entry"
+            onClick={() => navigateTo('entry')}
+            className="w-full py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-sm rounded-2xl shadow-xl active:scale-[0.98] transition-all uppercase tracking-wide"
+          >
+            ✏️ Continue Today's Entry
+          </button>
+        )}
+
+        {todayReport && (
+          <button
+            id="btn-view-report"
+            onClick={() => navigateTo('report', { reportId: todayReport.id })}
+            className="w-full py-4 bg-[#0b1329] border border-slate-700 text-white font-bold text-sm rounded-2xl shadow-md active:scale-[0.98] transition-all"
+          >
+            📊 View Today's Report
+          </button>
+        )}
+
+        <button
+          id="btn-history"
+          onClick={() => navigateTo('history')}
+          className="w-full py-4 bg-[#0b1329] border border-slate-700 text-slate-300 font-bold text-sm rounded-2xl shadow-md active:scale-[0.98] transition-all"
+        >
+          📋 View History
+        </button>
       </div>
     </div>
   );

@@ -1,74 +1,35 @@
 import React from 'react';
 
-export default function BottomNav({
-  activeTab,
-  onTabChange,
-  isSettingsUnlocked,
-  hasActiveShift
-}) {
-  const tabs = [
-    { id: 'dashboard', label: 'Home', icon: '🏠' },
-    { id: 'history', label: 'History', icon: '📋' },
-    { id: 'entry', label: 'Entry', icon: '➕' },
-    { id: 'report', label: 'Report', icon: '📊' },
-    { id: 'settings', label: 'Settings', icon: '⚙️' }
-  ];
+const TABS = [
+  { id: 'dashboard', icon: '🏠', label: 'Home' },
+  { id: 'entry',     icon: '📝', label: 'New Entry' },
+  { id: 'report',    icon: '📊', label: 'Report' },
+  { id: 'history',   icon: '📋', label: 'History' },
+  { id: 'settings',  icon: '⚙️',  label: 'Settings' },
+];
 
+export default function BottomNav({ activeTab, onTabChange }) {
   return (
-    <div 
-      id="bnav" 
-      className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] bg-card border-t border-border flex z-[100]"
-    >
-      {tabs.map((tab) => {
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#001040]/97 backdrop-blur border-t border-slate-800 flex items-stretch">
+      {TABS.map((tab) => {
         const isActive = activeTab === tab.id;
-        const isSettings = tab.id === 'settings';
-        const showLock = isSettings && hasActiveShift && !isSettingsUnlocked;
-        const showRedDot = isSettings && isSettingsUnlocked;
-
-        if (tab.id === 'entry') {
-          return (
-            <div id="nb-entry" key={tab.id}>
-              <button
-                id="nb-entry-btn"
-                onClick={() => onTabChange(tab.id)}
-                className={isActive ? 'active-fab' : ''}
-              >
-                {tab.icon}
-              </button>
-              <span id="nb-entry-lbl">
-                {tab.label}
-              </span>
-            </div>
-          );
-        }
-
         return (
           <button
             key={tab.id}
+            id={`nav-${tab.id}`}
             onClick={() => onTabChange(tab.id)}
-            className={`nb ${isActive ? 'active' : ''} relative`}
+            className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 transition-all
+              ${isActive ? 'text-[#FFD100]' : 'text-slate-500 hover:text-slate-300'}`}
           >
-            <div className="relative text-[20px] flex items-center justify-center">
-              {/* Main Tab Icon */}
-              <span>{tab.icon}</span>
-
-              {/* Settings Lock Overlay */}
-              {showLock && (
-                <span className="absolute -top-1 -right-2 text-[10px] bg-bg border border-border rounded-full p-0.5 shadow-md">
-                  🔒
-                </span>
-              )}
-
-              {/* Settings Unlocked Red Dot */}
-              {showRedDot && (
-                <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 border-2 border-card rounded-full animate-pulse" />
-              )}
-            </div>
-            <span className="font-medium">{tab.label}</span>
+            {/* Active indicator bar */}
+            <span className={`block h-0.5 w-6 rounded-full mb-1 transition-all ${isActive ? 'bg-[#FFD100]' : 'bg-transparent'}`} />
+            <span className="text-xl leading-none">{tab.icon}</span>
+            <span className={`text-[9px] font-bold leading-none mt-0.5 ${isActive ? 'text-[#FFD100]' : ''}`}>
+              {tab.label}
+            </span>
           </button>
         );
       })}
-    </div>
+    </nav>
   );
 }
-

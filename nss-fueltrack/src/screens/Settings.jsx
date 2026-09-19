@@ -1,388 +1,176 @@
 import React, { useState, useEffect } from 'react';
-import { fmtTime } from '../constants';
+import { api } from '../api';
 
-export default function Settings({
-  prices,
-  onSavePrices,
-  dsmName,
-  shiftType,
-  startTime,
-  onEndShiftInitiate,
-  onSavePin,
-  ownerEmail,
-  onSaveEmail,
-  onRefreshData
-}) {
-  const [msPriceInput, setMsPriceInput] = useState(prices.ms.toString());
-  const [hsdPriceInput, setHsdPriceInput] = useState(prices.hsd.toString());
-  const [isPricesSavedFlash, setIsPricesSavedFlash] = useState(false);
+function SettingRow({ label, hint, children }) {
+  return (
+    <div className="flex flex-col gap-2 py-3 border-b border-slate-800 last:border-0">
+      <div>
+        <p className="text-xs font-bold text-white">{label}</p>
+        {hint && <p className="text-[10px] text-slate-500 mt-0.5">{hint}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
 
-  const [newPin, setNewPin] = useState('');
-  const [pinMessage, setPinMessage] = useState('');
-  const [isPinFlash, setIsPinFlash] = useState(false);
+export default function Settings({ fuelPrices, setFuelPrices, lubricateProducts, setLubricateProducts, showToast }) {
+  const [diesel, setDiesel] = useState(String(fuelPrices.diesel || ''));
+  const [ms,     setMs]     = useState(String(fuelPrices.ms     || ''));
+  const [savingPrices, setSavingPrices] = useState(false);
 
-  const [emailInput, setEmailInput] = useState(ownerEmail || '');
-  const [isEmailSavedFlash, setIsEmailSavedFlash] = useState(false);
+  const [newLub, setNewLub] = useState('');
+  const [addingLub, setAddingLub] = useState(false);
 
   useEffect(() => {
-    setEmailInput(ownerEmail || '');
-  }, [ownerEmail]);
+    setDiesel(String(fuelPrices.diesel || ''));
+    setMs(String(fuelPrices.ms || ''));
+  }, [fuelPrices]);
 
-  const handleSaveEmail = (e) => {
-    e.preventDefault();
-    if (!emailInput.trim() || !emailInput.includes('@')) {
-      alert('Please enter a valid email address.');
+  async function savePrices() {
+    const d = parseFloat(diesel);
+    const m = parseFloat(ms);
+    if (isNaN(d) || d <= 0 || isNaN(m) || m <= 0) {
+      showToast('Prices must be positive numbers', 'error');
       return;
     }
-    onSaveEmail(emailInput.trim());
-    setIsEmailSavedFlash(true);
-    setTimeout(() => {
-      setIsEmailSavedFlash(false);
-    }, 2000);
-  };
-
-  const isShiftActive = !!startTime;
-
-  const handleSavePrices = () => {
-    const ms = parseFloat(msPriceInput);
-    const hsd = parseFloat(hsdPriceInput);
-
-    if (isNaN(ms) || isNaN(hsd) || ms <= 0 || hsd <= 0) {
-      alert('Please enter valid, positive rates for both fuels.');
-      return;
+    setSavingPrices(true);
+    try {
+      const updated = await api.updateFuelPrices({ diesel: d, ms: m });
+      setFuelPrices(updated);
+      showToast('✅ Fuel prices updated!');
+    } catch (err) {
+      showToast(`Failed to update prices: ${err.message}`, 'error');
+    } finally {
+      setSavingPrices(false);
     }
+  }
 
-    onSavePrices({ ms, hsd });
-    
-    setIsPricesSavedFlash(true);
-    setTimeout(() => {
-      setIsPricesSavedFlash(false);
-    }, 1800);
-  };
-
-  const handleSavePin = (e) => {
-    e.preventDefault();
-    if (!/^\d{4}$/.test(newPin)) {
-      setPinMessage('❌ PIN must be exactly 4 digits');
-      return;
+  async function addLubricate() {
+    if (!newLub.trim()) return;
+    setAddingLub(true);
+    try {
+      await api.addLubricateProduct({ name: newLub.trim() });
+      const updated = await api.getLubricateProducts();
+      setLubricateProducts(updated.map(p => p.name));
+      setNewLub('');
+      showToast(`✅ "${newLub.trim()}" added!`);
+    } catch (err) {
+      showToast(`Failed: ${err.message}`, 'error');
+    } finally {
+      setAddingLub(false);
     }
-
-    onSavePin(newPin);
-    setNewPin('');
-    setPinMessage('✅ PIN updated successfully!');
-    setIsPinFlash(true);
-    
-    setTimeout(() => {
-      setPinMessage('');
-      setIsPinFlash(false);
-    }, 2500);
-  };
+  }
 
   return (
-    <div id="s-settings" className="screen active" style={{padding: '0 14px 80px'}}>
-      
-      <div className="s-section" style={{
-        background: 'linear-gradient(135deg, #0c1224 0%, #080b18 100%)',
-        borderRadius: '20px',
-        padding: '20px',
-        border: '1px solid rgba(255, 255, 255, 0.06)',
-        marginBottom: '16px',
-        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)'
-      }}>
-        <div style={{fontSize: '16px', fontWeight: 900, color: '#f8fafc', marginBottom: '4px'}}>⛽ Fuel Prices</div>
-        <div style={{fontSize: '12px', color: '#94a3b8', marginBottom: '16px'}}>Set today's rate per litre</div>
-        
-        <div style={{
-          background: '#040814',
-          borderRadius: '16px',
-          padding: '16px',
-          border: '1px solid rgba(255,255,255,0.03)',
-          marginBottom: '16px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px'
-        }}>
-          {/* HSD Price Input */}
-          <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-            <div style={{
-              fontSize: '12px',
-              fontWeight: 900,
-              padding: '10px 14px',
-              borderRadius: '10px',
-              minWidth: '70px',
-              textAlign: 'center',
-              background: 'rgba(59, 130, 246, 0.1)',
-              color: '#3b82f6',
-              border: '1px solid rgba(59, 130, 246, 0.25)'
-            }}>HSD</div>
-            <div style={{position: 'relative', flex: 1}}>
-              <span style={{position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', fontWeight: 800, fontSize: '15px'}}>₹</span>
-              <input 
-                type="number" 
-                value={hsdPriceInput} 
-                onChange={(e) => setHsdPriceInput(e.target.value)}
-                step="0.01" 
-                placeholder="0.00"
-                style={{
-                  width: '100%',
-                  background: '#070c1a',
-                  border: '1px solid rgba(59, 130, 246, 0.2)',
-                  borderRadius: '10px',
-                  padding: '12px 12px 12px 28px',
-                  color: '#fff',
-                  fontWeight: 900,
-                  fontSize: '16px',
-                  outline: 'none',
-                  opacity: 1,
-                  fontFamily: 'monospace'
-                }}
-              />
-            </div>
-          </div>
-          
-          {/* MS Price Input */}
-          <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-            <div style={{
-              fontSize: '12px',
-              fontWeight: 900,
-              padding: '10px 14px',
-              borderRadius: '10px',
-              minWidth: '70px',
-              textAlign: 'center',
-              background: 'rgba(255, 209, 0, 0.1)',
-              color: '#FFD100',
-              border: '1px solid rgba(255, 209, 0, 0.25)'
-            }}>MS</div>
-            <div style={{position: 'relative', flex: 1}}>
-              <span style={{position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', fontWeight: 800, fontSize: '15px'}}>₹</span>
-              <input 
-                type="number" 
-                value={msPriceInput} 
-                onChange={(e) => setMsPriceInput(e.target.value)}
-                step="0.01" 
-                placeholder="0.00"
-                style={{
-                  width: '100%',
-                  background: '#070c1a',
-                  border: '1px solid rgba(255, 209, 0, 0.2)',
-                  borderRadius: '10px',
-                  padding: '12px 12px 12px 28px',
-                  color: '#fff',
-                  fontWeight: 900,
-                  fontSize: '16px',
-                  outline: 'none',
-                  opacity: 1,
-                  fontFamily: 'monospace'
-                }}
-              />
-            </div>
-          </div>
-        </div>
+    <div id="screen-settings" className="flex flex-col gap-5 pb-6">
 
-        <button 
-          onClick={handleSavePrices}
-          style={{
-            width: '100%',
-            padding: '14px',
-            borderRadius: '12px',
-            border: 'none',
-            background: 'linear-gradient(135deg, #FFD100, #fbbf24)',
-            color: '#001440',
-            fontWeight: 900,
-            fontSize: '14px',
-            cursor: 'pointer',
-            transition: 'all 0.15s',
-            boxShadow: '0 4px 15px rgba(255, 209, 0, 0.2)'
-          }}
-        >
-          {isPricesSavedFlash ? '✓ Rates Saved!' : 'Save Prices'}
-        </button>
+      <div>
+        <h1 className="text-lg font-black text-white">Settings</h1>
+        <p className="text-[10px] text-slate-500">Configure NSS FuelTrack</p>
       </div>
 
-      <div className="s-section" style={{
-        background: 'linear-gradient(135deg, #0c1224 0%, #080b18 100%)',
-        borderRadius: '20px',
-        padding: '20px',
-        border: '1px solid rgba(255, 255, 255, 0.06)',
-        marginBottom: '16px',
-        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)'
-      }}>
-        <div style={{fontSize: '16px', fontWeight: 900, color: '#f8fafc', marginBottom: '4px'}}>🔑 Owner PIN</div>
-        <div style={{fontSize: '12px', color: '#94a3b8', marginBottom: '16px'}}>Update the secret 4-digit manager PIN</div>
-        
-        <form onSubmit={handleSavePin}>
-          <div style={{position: 'relative', marginBottom: '16px'}}>
-            <input 
-              type="password" 
-              placeholder="Enter new 4-digit PIN" 
-              inputMode="numeric" 
-              maxLength={4}
-              value={newPin}
-              onChange={(e) => setNewPin(e.target.value)}
-              style={{
-                width: '100%',
-                background: '#040814',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '12px',
-                padding: '14px 16px',
-                color: '#fff',
-                fontWeight: 900,
-                fontSize: '15px',
-                outline: 'none',
-                textAlign: 'center',
-                letterSpacing: '8px'
-              }}
+      {/* Fuel Prices */}
+      <div className="bg-[#0b1329] border border-slate-800 rounded-2xl p-4 shadow-md">
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">⛽ Fuel Prices (per Litre)</p>
+
+        <SettingRow label="Diesel Price" hint="Used to calculate nozzle N1 & N2 amounts">
+          <div className="flex gap-2 items-center">
+            <span className="text-sm text-slate-400">₹</span>
+            <input
+              id="setting-diesel-price"
+              type="number"
+              min="0"
+              step="0.01"
+              value={diesel}
+              onChange={e => setDiesel(e.target.value)}
+              inputMode="decimal"
+              className="flex-1 px-4 py-3 rounded-xl text-sm text-white bg-[#050b18] border border-slate-700 focus:outline-none focus:ring-2 focus:ring-[#FFD100]/50"
             />
           </div>
-          <button 
-            type="submit"
-            style={{
-              width: '100%', 
-              padding: '14px', 
-              borderRadius: '12px', 
-              background: 'rgba(255, 255, 255, 0.05)', 
-              color: '#f8fafc', 
-              fontWeight: 800,
-              fontSize: '14px',
-              border: '1px solid rgba(255,255,255,0.08)',
-              cursor: 'pointer',
-              transition: 'all 0.15s'
-            }} 
-          >
-            Update PIN
-          </button>
-        </form>
-        {pinMessage && (
-          <div style={{
-            fontSize: '12px', 
-            fontWeight: 800, 
-            marginTop: '12px', 
-            textAlign: 'center',
-            color: pinMessage.includes('❌') ? '#ef4444' : '#22c55e'
-          }}>
-            {pinMessage}
-          </div>
-        )}
-      </div>
+        </SettingRow>
 
-      <div className="s-section" style={{
-        background: 'linear-gradient(135deg, #0c1224 0%, #080b18 100%)',
-        borderRadius: '20px',
-        padding: '20px',
-        border: '1px solid rgba(255, 255, 255, 0.06)',
-        marginBottom: '16px',
-        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)'
-      }}>
-        <div style={{fontSize: '16px', fontWeight: 900, color: '#f8fafc', marginBottom: '4px'}}>✉️ Owner Email</div>
-        <div style={{fontSize: '12px', color: '#94a3b8', marginBottom: '16px'}}>Configure the email address for Shift Start OTPs</div>
-        
-        <form onSubmit={handleSaveEmail}>
-          <div style={{position: 'relative', marginBottom: '16px'}}>
-            <input 
-              type="email" 
-              placeholder="owner@example.com" 
-              value={emailInput}
-              onChange={(e) => setEmailInput(e.target.value)}
-              style={{
-                width: '100%',
-                background: '#040814',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '12px',
-                padding: '14px 16px',
-                color: '#fff',
-                fontWeight: 800,
-                fontSize: '15px',
-                outline: 'none',
-              }}
+        <SettingRow label="Motor Spirit (Petrol) Price" hint="Used to calculate nozzle N3 & N4 amounts">
+          <div className="flex gap-2 items-center">
+            <span className="text-sm text-slate-400">₹</span>
+            <input
+              id="setting-ms-price"
+              type="number"
+              min="0"
+              step="0.01"
+              value={ms}
+              onChange={e => setMs(e.target.value)}
+              inputMode="decimal"
+              className="flex-1 px-4 py-3 rounded-xl text-sm text-white bg-[#050b18] border border-slate-700 focus:outline-none focus:ring-2 focus:ring-[#FFD100]/50"
             />
           </div>
-          <button 
-            type="submit"
-            style={{
-              width: '100%', 
-              padding: '14px', 
-              borderRadius: '12px', 
-              background: 'linear-gradient(135deg, #FFD100, #fbbf24)', 
-              color: '#001440', 
-              fontWeight: 900,
-              fontSize: '14px',
-              border: 'none',
-              cursor: 'pointer',
-              transition: 'all 0.15s',
-              boxShadow: '0 4px 15px rgba(255, 209, 0, 0.15)'
-            }} 
-          >
-            {isEmailSavedFlash ? '✓ Email Saved!' : 'Update Email'}
-          </button>
-        </form>
+        </SettingRow>
+
+        <button
+          id="btn-save-prices"
+          onClick={savePrices}
+          disabled={savingPrices}
+          className="w-full mt-3 py-3 bg-gradient-to-r from-[#FFD100] to-amber-400 text-[#001040] font-black text-sm rounded-xl active:scale-[0.98] transition-all disabled:opacity-60"
+        >
+          {savingPrices ? '⏳ Saving...' : '💾 Save Fuel Prices'}
+        </button>
       </div>
 
-      <div className="s-section" style={{
-        background: 'linear-gradient(135deg, #0c1224 0%, #080b18 100%)',
-        borderRadius: '20px',
-        padding: '20px',
-        border: '1px solid rgba(255, 255, 255, 0.06)',
-        marginBottom: '16px',
-        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)'
-      }}>
-        <div style={{fontSize: '16px', fontWeight: 900, color: '#f8fafc', marginBottom: '4px'}}>🔄 Shift Data Management</div>
-        <div style={{fontSize: '12px', color: '#94a3b8', marginBottom: '16px'}}>Manage local storage, logs & shift resets</div>
-        
-        <button 
-          onClick={onEndShiftInitiate}
-          style={{
-            width: '100%', 
-            padding: '14px', 
-            borderRadius: '12px', 
-            background: 'linear-gradient(135deg, #ef4444, #b91c1c)', 
-            color: '#fff', 
-            fontWeight: 850,
-            fontSize: '14px',
-            border: 'none',
-            cursor: 'pointer',
-            boxShadow: '0 4px 15px rgba(239, 68, 68, 0.25)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-            marginBottom: '12px'
-          }} 
-        >
-          🚨 End Shift & Clear Data
-        </button>
-        
-        <div style={{
-          fontSize: '11px', 
-          color: '#64748b', 
-          lineHeight: 1.5,
-          background: 'rgba(0,0,0,0.15)',
-          padding: '10px 14px',
-          borderRadius: '10px',
-          borderLeft: '3px solid #64748b',
-          marginBottom: '16px'
-        }}>
-          ⚠️ Warning: This action will erase all cached shift entries, reset opening and closing totalizers, and lock the screen. Share the final shift report before proceeding.
+      {/* Lubricate Products */}
+      <div className="bg-[#0b1329] border border-slate-800 rounded-2xl p-4 shadow-md">
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">🛢️ Lubricate Products</p>
+
+        <div className="flex flex-col gap-1 mb-4">
+          {lubricateProducts.length === 0 ? (
+            <p className="text-xs text-slate-500 py-2">No products configured.</p>
+          ) : (
+            lubricateProducts.map(name => (
+              <div key={name} className="flex items-center gap-2 px-3 py-2 bg-[#050b18] border border-slate-800 rounded-lg">
+                <span className="text-sm text-slate-300">🛢️</span>
+                <span className="text-xs font-bold text-slate-300">{name}</span>
+              </div>
+            ))
+          )}
         </div>
-        
-        <button 
-          onClick={onRefreshData}
-          style={{
-            width: '100%', 
-            padding: '14px', 
-            borderRadius: '12px', 
-            background: 'linear-gradient(135deg, #10b981, #059669)', 
-            color: '#fff', 
-            fontWeight: 850,
-            fontSize: '14px',
-            border: 'none',
-            cursor: 'pointer',
-            boxShadow: '0 4px 15px rgba(16, 185, 129, 0.25)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px'
-          }} 
-        >
-          🔄 Refresh From Saved Data
-        </button>
+
+        <div className="flex gap-2">
+          <input
+            id="setting-new-lubricate"
+            type="text"
+            value={newLub}
+            onChange={e => setNewLub(e.target.value)}
+            placeholder="New product name..."
+            onKeyDown={e => e.key === 'Enter' && addLubricate()}
+            className="flex-1 px-4 py-3 rounded-xl text-sm text-white placeholder-slate-600 bg-[#050b18] border border-slate-700 focus:outline-none focus:ring-2 focus:ring-[#FFD100]/50"
+          />
+          <button
+            id="btn-add-lubricate"
+            onClick={addLubricate}
+            disabled={addingLub || !newLub.trim()}
+            className="px-4 py-3 bg-[#FFD100] text-[#001040] font-black text-sm rounded-xl active:scale-[0.98] transition-all disabled:opacity-60"
+          >
+            {addingLub ? '⏳' : '+ Add'}
+          </button>
+        </div>
       </div>
 
+      {/* App Info */}
+      <div className="bg-[#0b1329] border border-slate-800 rounded-2xl p-4 shadow-md">
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">ℹ️ App Information</p>
+        <div className="flex flex-col gap-2 text-xs">
+          {[
+            ['App', 'NSS FuelTrack v3.0'],
+            ['Station', 'NSS Fuel Station'],
+            ['Corporation', 'Bharat Petroleum'],
+            ['Active Pumps', 'Pump 01'],
+            ['Backend', (import.meta.env.VITE_API_URL || 'http://localhost:8000')],
+          ].map(([k, v]) => (
+            <div key={k} className="flex justify-between items-center py-1.5 border-b border-slate-800 last:border-0">
+              <span className="text-slate-400 font-bold">{k}</span>
+              <span className="text-slate-300">{v}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
