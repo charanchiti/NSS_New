@@ -13,6 +13,7 @@ export const COLLECTION_CATEGORIES = [
   { id: 'non_pump_expenses',label: 'Non Pump Expenses' },
   { id: 'discount',         label: 'Discount' },
   { id: 'lubricates',       label: 'Lubricates' },
+  { id: 'testing',          label: 'Testing' },
 ];
 
 // Income vs deduction classification (matches backend)
@@ -27,6 +28,8 @@ export const NOZZLES = [
   { nozzle_number: 3, label: 'Nozzle 3', fuel_type: 'ms',     fuel_label: 'Motor Spirit' },
   { nozzle_number: 4, label: 'Nozzle 4', fuel_type: 'ms',     fuel_label: 'Motor Spirit' },
 ];
+
+export const MAX_PUMPS = 3;
 
 // ── Formatters ───────────────────────────────────────────────────────
 

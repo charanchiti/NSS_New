@@ -153,7 +153,7 @@ export default function Report({
       </div>
 
       {/* ── FUEL SALES ─────────────────────────────────────────────── */}
-      <Section title="⛽ Fuel Sales — Pump 01">
+      <Section title={`⛽ Fuel Sales — Pump 0${report.pump_number}`}>
         {/* Column headers */}
         <div className="grid grid-cols-[60px_1fr_70px_70px_70px] gap-1 px-4 py-2 bg-slate-900/60 text-[9px] font-bold text-slate-400 uppercase">
           <span>Nozzle</span>

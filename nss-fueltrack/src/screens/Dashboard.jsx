@@ -4,6 +4,7 @@ import { fmt, fmtDateLong, today } from '../constants';
 export default function Dashboard({
   todayReport,
   fuelPrices,
+  activePump,
   navigateTo,
   refreshTodayReport,
 }) {
@@ -34,7 +35,7 @@ export default function Dashboard({
         <div className="flex items-center justify-between mb-4">
           <div>
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Active Pump</span>
-            <div className="text-2xl font-black text-white mt-1">Pump 01</div>
+            <div className="text-2xl font-black text-white mt-1">Pump 0{activePump}</div>
             <div className="text-[10px] text-slate-500 mt-0.5">NSS Fuel Station · BPCL</div>
           </div>
           <div className="w-16 h-16 rounded-2xl bg-[#FFD100]/10 border border-[#FFD100]/20 flex items-center justify-center">

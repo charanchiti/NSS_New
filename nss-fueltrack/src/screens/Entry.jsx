@@ -4,7 +4,7 @@ import { NOZZLES, COLLECTION_CATEGORIES, today, nowTime, fmt } from '../constant
 
 const SECTION_LABELS = {
   A: 'Basic Information',
-  B: 'Nozzle Readings (Pump 01)',
+  B: 'Nozzle Readings',
   C: 'Collection / Payment Details',
   D: 'Lubricates',
   E: 'Remarks',
@@ -58,6 +58,7 @@ export default function Entry({
   todayReport,
   fuelPrices,
   lubricateProducts,
+  activePump,
   showToast,
   navigateTo,
   refreshTodayReport,
@@ -236,7 +237,7 @@ export default function Entry({
       employee_name: employeeName.trim(),
       start_time:  startTime || null,
       end_time:    endTime   || null,
-      pump_number: 1,
+      pump_number: activePump,
       remarks:     remarks   || '',
       nozzle_readings: nozzleReadings
         .filter(n => n.opening_reading !== '' || n.closing_reading !== '')
@@ -316,7 +317,7 @@ export default function Entry({
       {/* Page title */}
       <div>
         <h1 className="text-lg font-black text-white">Daily Entry</h1>
-        <p className="text-[10px] text-slate-500">Pump 01 · NSS Fuel Station</p>
+        <p className="text-[10px] text-slate-500">Pump 0{activePump} · NSS Fuel Station</p>
       </div>
 
       {/* Validation errors */}
@@ -348,7 +349,7 @@ export default function Entry({
             <InputField
               id="pump-number"
               label="Pump Number"
-              value="Pump 01"
+              value={`Pump 0${activePump}`}
               readOnly
             />
           </div>

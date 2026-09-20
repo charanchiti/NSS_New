@@ -1,5 +1,6 @@
 from pydantic import BaseModel, field_validator
 from datetime import date, datetime
+import datetime as dt
 from typing import Optional, List
 
 
@@ -134,7 +135,7 @@ class LubricateResponse(BaseModel):
 # ── DAILY REPORT ───────────────────────────────────────────────────
 
 class ReportCreate(BaseModel):
-    date: date
+    date: dt.date
     employee_name: str
     start_time: Optional[str] = None   # "HH:MM"
     end_time: Optional[str] = None
@@ -153,14 +154,14 @@ class ReportCreate(BaseModel):
 
     @field_validator('pump_number')
     @classmethod
-    def pump_must_be_one(cls, v):
-        if v != 1:
-            raise ValueError('Only Pump 01 is currently enabled')
+    def valid_pump(cls, v):
+        if v not in (1, 2, 3):
+            raise ValueError('Only Pumps 01, 02, and 03 are supported')
         return v
 
 
 class ReportUpdate(BaseModel):
-    date: Optional[date] = None
+    date: Optional[dt.date] = None
     employee_name: Optional[str] = None
     start_time: Optional[str] = None
     end_time: Optional[str] = None
@@ -174,7 +175,7 @@ class ReportUpdate(BaseModel):
 class ReportSummary(BaseModel):
     """Lightweight response for history list."""
     id: str
-    date: date
+    date: dt.date
     employee_name: str
     pump_number: int
     status: str
@@ -203,7 +204,7 @@ class CalculationSummary(BaseModel):
 
 class ReportResponse(BaseModel):
     id: str
-    date: date
+    date: dt.date
     employee_name: str
     start_time: Optional[str]
     end_time: Optional[str]

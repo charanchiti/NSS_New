@@ -3,16 +3,19 @@ import uuid
 import datetime
 from contextlib import asynccontextmanager
 from typing import List, Optional
+import io
 from io import BytesIO
 
 from fastapi import FastAPI, Depends, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
-
-import models
 import schemas
-from database import engine, SessionLocal, Base, get_db
+import google_sheets
+import google_drive
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # ── ReportLab imports for PDF ──────────────────────────────────────
 from reportlab.lib.pagesizes import A4, landscape
@@ -68,30 +71,14 @@ DEFAULT_LUBRICATES = [
 ]
 
 
-# ── DATABASE SEEDING ON STARTUP ────────────────────────────────────
+# ── INITIALIZATION ──────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
-
-    db = SessionLocal()
     try:
-        # Seed fuel prices if not present
-        if not db.query(models.FuelPrice).filter_by(fuel_type="diesel").first():
-            db.add(models.FuelPrice(fuel_type="diesel", price=99.11, active=True))
-        if not db.query(models.FuelPrice).filter_by(fuel_type="ms").first():
-            db.add(models.FuelPrice(fuel_type="ms", price=111.22, active=True))
-
-        # Seed lubricate products if not present
-        if db.query(models.LubricateProduct).count() == 0:
-            for i, name in enumerate(DEFAULT_LUBRICATES):
-                db.add(models.LubricateProduct(name=name, sort_order=i, active=True))
-
-        db.commit()
+        google_sheets.initialize_sheets()
+        print("Google Sheets initialized.")
     except Exception as e:
-        print(f"Seeding error: {e}")
-        db.rollback()
-    finally:
-        db.close()
+        print(f"Failed to initialize sheets: {e}")
     yield
 
 
@@ -116,376 +103,102 @@ if not origins:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# ── HELPERS ────────────────────────────────────────────────────────
-
-def _calculate_report(report: models.DailyReport) -> schemas.CalculationSummary:
-    """Compute all totals for a given report object."""
-    diesel_litres = sum(
-        n.sales_litres for n in report.nozzle_readings if n.fuel_type == "diesel"
-    )
-    diesel_amount = sum(
-        n.amount for n in report.nozzle_readings if n.fuel_type == "diesel"
-    )
-    ms_litres = sum(
-        n.sales_litres for n in report.nozzle_readings if n.fuel_type == "ms"
-    )
-    ms_amount = sum(
-        n.amount for n in report.nozzle_readings if n.fuel_type == "ms"
-    )
-    total_fuel_litres = diesel_litres + ms_litres
-    total_fuel_amount = diesel_amount + ms_amount
-
-    col_map = {c.category: c.total_amount for c in report.collections}
-
-    gross_collection = sum(col_map.get(cat, 0.0) for cat in INCOME_CATEGORIES)
-    total_deductions = sum(col_map.get(cat, 0.0) for cat in DEDUCTION_CATEGORIES)
-    net_collection = gross_collection - total_deductions
-
-    lub_total = col_map.get("lubricates", 0.0)
-    expected_collection = total_fuel_amount + lub_total
-
-    return schemas.CalculationSummary(
-        total_fuel_litres=round(total_fuel_litres, 2),
-        total_fuel_amount=round(total_fuel_amount, 2),
-        diesel_litres=round(diesel_litres, 2),
-        diesel_amount=round(diesel_amount, 2),
-        ms_litres=round(ms_litres, 2),
-        ms_amount=round(ms_amount, 2),
-        gross_collection=round(gross_collection, 2),
-        total_deductions=round(total_deductions, 2),
-        net_collection=round(net_collection, 2),
-        expected_collection=round(expected_collection, 2),
-    )
-
-
-def _upsert_nozzle_readings(
-    db: Session,
-    report: models.DailyReport,
-    readings: List[schemas.NozzleReadingIn],
-    prices: dict,
-):
-    """Delete existing nozzle readings for the report and recreate from input."""
-    # Remove old readings
-    for old in list(report.nozzle_readings):
-        db.delete(old)
-    db.flush()
-
-    for r in readings:
-        price = prices.get(r.fuel_type, 0.0)
-        sales = max(0.0, r.closing_reading - r.opening_reading)
-        amount = round(sales * price, 2)
-        nozzle = models.NozzleReading(
-            id=str(uuid.uuid4()),
-            report_id=report.id,
-            nozzle_number=r.nozzle_number,
-            fuel_type=r.fuel_type,
-            opening_reading=r.opening_reading,
-            closing_reading=r.closing_reading,
-            sales_litres=round(sales, 2),
-            price=price,
-            amount=amount,
-        )
-        db.add(nozzle)
-
-
-def _upsert_collections(
-    db: Session,
-    report: models.DailyReport,
-    collections: List[schemas.CollectionIn],
-):
-    for old in list(report.collections):
-        db.delete(old)
-    db.flush()
-
-    for c in collections:
-        total = round(c.day_amount + c.evening_amount, 2)
-        col = models.Collection(
-            id=str(uuid.uuid4()),
-            report_id=report.id,
-            category=c.category,
-            day_amount=c.day_amount,
-            evening_amount=c.evening_amount,
-            total_amount=total,
-        )
-        db.add(col)
-
-
-def _upsert_lubricates(
-    db: Session,
-    report: models.DailyReport,
-    lubricates: List[schemas.LubricateIn],
-):
-    for old in list(report.lubricates):
-        db.delete(old)
-    db.flush()
-
-    for l in lubricates:
-        balance = max(0.0, l.opening_stock - l.sales)
-        lub = models.Lubricate(
-            id=str(uuid.uuid4()),
-            report_id=report.id,
-            product_name=l.product_name,
-            opening_stock=l.opening_stock,
-            sales=l.sales,
-            balance_stock=round(balance, 2),
-        )
-        db.add(lub)
-
-
-def _get_prices_dict(db: Session) -> dict:
-    prices_rows = db.query(models.FuelPrice).filter_by(active=True).all()
-    return {p.fuel_type: p.price for p in prices_rows}
-
-
-def _build_report_response(report: models.DailyReport) -> schemas.ReportResponse:
-    summary = _calculate_report(report)
-    return schemas.ReportResponse(
-        id=report.id,
-        date=report.date,
-        employee_name=report.employee_name,
-        start_time=report.start_time,
-        end_time=report.end_time,
-        pump_number=report.pump_number,
-        status=report.status,
-        remarks=report.remarks,
-        created_at=report.created_at,
-        updated_at=report.updated_at,
-        nozzle_readings=[
-            schemas.NozzleReadingResponse(
-                id=n.id,
-                nozzle_number=n.nozzle_number,
-                fuel_type=n.fuel_type,
-                opening_reading=n.opening_reading,
-                closing_reading=n.closing_reading,
-                sales_litres=n.sales_litres,
-                price=n.price,
-                amount=n.amount,
-            )
-            for n in sorted(report.nozzle_readings, key=lambda x: x.nozzle_number)
-        ],
-        collections=[
-            schemas.CollectionResponse(
-                id=c.id,
-                category=c.category,
-                day_amount=c.day_amount,
-                evening_amount=c.evening_amount,
-                total_amount=c.total_amount,
-            )
-            for c in report.collections
-        ],
-        lubricates=[
-            schemas.LubricateResponse(
-                id=l.id,
-                product_name=l.product_name,
-                opening_stock=l.opening_stock,
-                sales=l.sales,
-                balance_stock=l.balance_stock,
-            )
-            for l in report.lubricates
-        ],
-        summary=summary,
-    )
-
-
 # ── FUEL PRICE ENDPOINTS ───────────────────────────────────────────
 
 @app.get("/api/config/fuel-prices", response_model=schemas.FuelPricesResponse)
-def get_fuel_prices(db: Session = Depends(get_db)):
-    prices = _get_prices_dict(db)
-    return schemas.FuelPricesResponse(
-        diesel=prices.get("diesel", 99.11),
-        ms=prices.get("ms", 111.22),
-    )
-
+def get_fuel_prices():
+    return google_sheets.get_fuel_prices()
 
 @app.put("/api/config/fuel-prices", response_model=schemas.FuelPricesResponse)
-def update_fuel_prices(payload: schemas.FuelPricesUpdate, db: Session = Depends(get_db)):
-    for fuel_type, price_val in [("diesel", payload.diesel), ("ms", payload.ms)]:
-        row = db.query(models.FuelPrice).filter_by(fuel_type=fuel_type).first()
-        if row:
-            row.price = price_val
-        else:
-            db.add(models.FuelPrice(fuel_type=fuel_type, price=price_val, active=True))
-    db.commit()
-    return schemas.FuelPricesResponse(diesel=payload.diesel, ms=payload.ms)
-
+def update_fuel_prices(payload: schemas.FuelPricesUpdate):
+    return google_sheets.update_fuel_prices(payload.diesel, payload.ms)
 
 # ── LUBRICATE PRODUCT ENDPOINTS ────────────────────────────────────
 
 @app.get("/api/config/lubricates", response_model=List[schemas.LubricateProductResponse])
-def get_lubricate_products(db: Session = Depends(get_db)):
-    return db.query(models.LubricateProduct).filter_by(active=True).order_by(
-        models.LubricateProduct.sort_order
-    ).all()
-
+def get_lubricate_products():
+    return google_sheets.get_lubricate_products()
 
 @app.post("/api/config/lubricates", response_model=schemas.LubricateProductResponse, status_code=201)
-def add_lubricate_product(payload: schemas.LubricateProductCreate, db: Session = Depends(get_db)):
-    existing = db.query(models.LubricateProduct).filter_by(name=payload.name).first()
-    if existing:
-        existing.active = True
-        db.commit()
-        db.refresh(existing)
-        return existing
-    product = models.LubricateProduct(name=payload.name, sort_order=payload.sort_order)
-    db.add(product)
-    db.commit()
-    db.refresh(product)
-    return product
+def add_lubricate_product(payload: schemas.LubricateProductCreate):
+    return google_sheets.add_lubricate_product(payload.name, payload.sort_order)
 
 
 # ── DAILY REPORT ENDPOINTS ─────────────────────────────────────────
 
 @app.post("/api/reports", response_model=schemas.ReportResponse, status_code=201)
-def create_report(payload: schemas.ReportCreate, db: Session = Depends(get_db)):
-    # Enforce one report per pump per date
-    existing = db.query(models.DailyReport).filter_by(
-        date=payload.date, pump_number=payload.pump_number
-    ).first()
-    if existing:
+def create_report(payload: schemas.ReportCreate):
+    report, report_id = google_sheets.create_report(payload, status="completed")
+    if not report:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={
                 "message": "A report already exists for this date and pump.",
-                "existing_id": existing.id,
+                "existing_id": report_id,
             },
         )
-
-    report_id = f"rpt_{payload.date.strftime('%Y%m%d')}_p{payload.pump_number}_{uuid.uuid4().hex[:6]}"
-    report = models.DailyReport(
-        id=report_id,
-        date=payload.date,
-        employee_name=payload.employee_name,
-        start_time=payload.start_time,
-        end_time=payload.end_time,
-        pump_number=payload.pump_number,
-        status="draft",
-        remarks=payload.remarks,
-    )
-    db.add(report)
-    db.flush()  # get the report.id before adding children
-
-    prices = _get_prices_dict(db)
-    _upsert_nozzle_readings(db, report, payload.nozzle_readings, prices)
-    _upsert_collections(db, report, payload.collections)
-    _upsert_lubricates(db, report, payload.lubricates)
-
-    db.commit()
-    db.refresh(report)
-    return _build_report_response(report)
-
+    return report
 
 @app.get("/api/reports", response_model=List[schemas.ReportSummary])
 def list_reports(
-    db: Session = Depends(get_db),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
 ):
-    q = db.query(models.DailyReport).order_by(models.DailyReport.date.desc())
-
+    df = None
+    dt = None
     if date_from:
         try:
-            q = q.filter(models.DailyReport.date >= datetime.date.fromisoformat(date_from))
+            df = datetime.date.fromisoformat(date_from)
         except ValueError:
             pass
     if date_to:
         try:
-            q = q.filter(models.DailyReport.date <= datetime.date.fromisoformat(date_to))
+            dt = datetime.date.fromisoformat(date_to)
         except ValueError:
             pass
-
-    reports = q.all()
-
-    results = []
-    for r in reports:
-        summary = _calculate_report(r)
-        results.append(
-            schemas.ReportSummary(
-                id=r.id,
-                date=r.date,
-                employee_name=r.employee_name,
-                pump_number=r.pump_number,
-                status=r.status,
-                total_sales_litres=summary.total_fuel_litres,
-                total_sales_amount=summary.total_fuel_amount,
-                total_collection=summary.gross_collection,
-                created_at=r.created_at,
-            )
-        )
-    return results
-
+    return google_sheets.list_reports(df, dt)
 
 @app.get("/api/reports/today", response_model=Optional[schemas.ReportResponse])
-def get_today_report(db: Session = Depends(get_db)):
+def get_today_report(pump: int = 1):
     today = datetime.date.today()
-    report = db.query(models.DailyReport).filter_by(date=today, pump_number=1).first()
-    if not report:
-        return None
-    return _build_report_response(report)
-
+    reports = google_sheets.list_reports(today, today)
+    for r in reports:
+        if r.pump_number == pump:
+            return google_sheets.get_report(r.id)
+    return None
 
 @app.get("/api/reports/{report_id}", response_model=schemas.ReportResponse)
-def get_report(report_id: str, db: Session = Depends(get_db)):
-    report = db.query(models.DailyReport).filter_by(id=report_id).first()
+def get_report(report_id: str):
+    report = google_sheets.get_report(report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
-    return _build_report_response(report)
-
+    return report
 
 @app.put("/api/reports/{report_id}", response_model=schemas.ReportResponse)
-def update_report(report_id: str, payload: schemas.ReportUpdate, db: Session = Depends(get_db)):
-    report = db.query(models.DailyReport).filter_by(id=report_id).first()
+def update_report(report_id: str, payload: schemas.ReportUpdate):
+    report = google_sheets.update_report(report_id, payload)
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
-
-    if payload.employee_name is not None:
-        report.employee_name = payload.employee_name.strip()
-    if payload.date is not None:
-        report.date = payload.date
-    if payload.start_time is not None:
-        report.start_time = payload.start_time
-    if payload.end_time is not None:
-        report.end_time = payload.end_time
-    if payload.status is not None:
-        if payload.status not in ("draft", "completed"):
-            raise HTTPException(status_code=400, detail="Status must be 'draft' or 'completed'")
-        report.status = payload.status
-    if payload.remarks is not None:
-        report.remarks = payload.remarks
-
-    report.updated_at = datetime.datetime.utcnow()
-
-    prices = _get_prices_dict(db)
-    if payload.nozzle_readings is not None:
-        _upsert_nozzle_readings(db, report, payload.nozzle_readings, prices)
-    if payload.collections is not None:
-        _upsert_collections(db, report, payload.collections)
-    if payload.lubricates is not None:
-        _upsert_lubricates(db, report, payload.lubricates)
-
-    db.commit()
-    db.refresh(report)
-    return _build_report_response(report)
-
+    return report
 
 @app.post("/api/reports/{report_id}/calculate", response_model=schemas.CalculationSummary)
-def calculate_report(report_id: str, db: Session = Depends(get_db)):
-    report = db.query(models.DailyReport).filter_by(id=report_id).first()
+def calculate_report(report_id: str):
+    report = google_sheets.get_report(report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
-    return _calculate_report(report)
+    return report.summary
 
 
 # ── PDF GENERATION ─────────────────────────────────────────────────
 
-def _generate_pdf(report: models.DailyReport) -> bytes:
+def _generate_pdf(report: schemas.ReportResponse) -> bytes:
     """Build a professional A4 landscape PDF for the daily report."""
     buffer = BytesIO()
     doc = SimpleDocTemplate(
@@ -788,7 +501,7 @@ def _generate_pdf(report: models.DailyReport) -> bytes:
     return buffer.getvalue()
 
 
-def _get_fuel_price_label(report: models.DailyReport, fuel_type: str) -> str:
+def _get_fuel_price_label(report: schemas.ReportResponse, fuel_type: str) -> str:
     """Get price label from nozzle readings for the given fuel type."""
     for n in report.nozzle_readings:
         if n.fuel_type == fuel_type:
@@ -797,16 +510,24 @@ def _get_fuel_price_label(report: models.DailyReport, fuel_type: str) -> str:
 
 
 @app.get("/api/reports/{report_id}/pdf")
-def download_report_pdf(report_id: str, db: Session = Depends(get_db)):
-    report = db.query(models.DailyReport).filter_by(id=report_id).first()
+def download_report_pdf(report_id: str):
+    report = google_sheets.get_report(report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
 
     pdf_bytes = _generate_pdf(report)
     filename = f"NSS_Report_{report.date.strftime('%Y-%m-%d')}_Pump0{report.pump_number}.pdf"
+    
+    # Upload to Google Drive in background/synchronously
+    try:
+        pdf_link = google_drive.upload_pdf(pdf_bytes, filename)
+        if pdf_link:
+            google_sheets.set_report_pdf_link(report_id, pdf_link)
+    except Exception as e:
+        print(f"Failed to upload to Google Drive: {e}")
 
     return StreamingResponse(
-        BytesIO(pdf_bytes),
+        io.BytesIO(pdf_bytes),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

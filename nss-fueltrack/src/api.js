@@ -63,8 +63,8 @@ export const api = {
     return request('GET', `/api/reports${qs}`);
   },
 
-  /** Get today's report for Pump 01 (null if not created yet) */
-  getTodayReport: () => request('GET', '/api/reports/today'),
+  /** Get today's report for the active pump (null if not created yet) */
+  getTodayReport: (pump = 1) => request('GET', `/api/reports/today?pump=${pump}`),
 
   /** @param {string} id */
   getReport: (id) => request('GET', `/api/reports/${id}`),
